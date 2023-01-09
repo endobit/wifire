@@ -2,12 +2,14 @@ package wifire
 
 import mqtt "github.com/eclipse/paho.mqtt.golang"
 
+// Grill is a handle for a grills MQTT connection.
 type Grill struct {
 	name   string
 	wifire WiFire
 	client mqtt.Client
 }
 
+// NewGrill returns a Grill with the given name.
 func (w WiFire) NewGrill(name string) *Grill {
 	return &Grill{
 		name:   name,
@@ -15,8 +17,9 @@ func (w WiFire) NewGrill(name string) *Grill {
 	}
 }
 
+// Connect establishes the MQTT connection to the Grill.
 func (g *Grill) Connect() error {
-	client, err := g.wifire.GetMQTT()
+	client, err := g.wifire.getMQTT()
 	if err != nil {
 		return err
 	}
@@ -29,6 +32,7 @@ func (g *Grill) Connect() error {
 	return nil
 }
 
+// Disconnect closed the MQTT connection to the Grill.
 func (g Grill) Disconnect() {
 	g.client.Disconnect(0)
 }

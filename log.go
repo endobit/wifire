@@ -29,11 +29,11 @@ func Logging(logger zerolog.Logger, level zerolog.Level) func(*WiFire) {
 	}
 }
 
-func printf(e *zerolog.Event, format string, v ...interface{}) {
+func logf(e *zerolog.Event, format string, v ...interface{}) {
 	e.Msg(strings.Trim(fmt.Sprintf(format, v...), "[]"))
 }
 
-func println(e *zerolog.Event, v ...interface{}) {
+func logln(e *zerolog.Event, v ...interface{}) {
 	if len(v) > 1 {
 		comp := strings.TrimSpace(fmt.Sprint(v[0]))
 		comp = strings.Trim(comp, "[]")
@@ -51,11 +51,11 @@ type (
 	err struct{}
 )
 
-func (trc) Printf(format string, v ...interface{}) { printf(log.Trace(), format, v...) }
-func (trc) Println(v ...interface{})               { println(log.Trace(), v...) }
+func (trc) Printf(format string, v ...interface{}) { logf(log.Trace(), format, v...) }
+func (trc) Println(v ...interface{})               { logln(log.Trace(), v...) }
 
-func (wrn) Printf(format string, v ...interface{}) { printf(log.Warn(), format, v...) }
-func (wrn) Println(v ...interface{})               { println(log.Warn(), v...) }
+func (wrn) Printf(format string, v ...interface{}) { logf(log.Warn(), format, v...) }
+func (wrn) Println(v ...interface{})               { logln(log.Warn(), v...) }
 
-func (err) Printf(format string, v ...interface{}) { printf(log.Error(), format, v...) }
-func (err) Println(v ...interface{})               { println(log.Error(), v...) }
+func (err) Printf(format string, v ...interface{}) { logf(log.Error(), format, v...) }
+func (err) Println(v ...interface{})               { logln(log.Error(), v...) }
