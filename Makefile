@@ -1,6 +1,5 @@
-RULESDIR=../builder
 RULES=go
-include $(RULESDIR)/rules.mk
+include builder.mk
 
 build::
 	go build $(GO_LDFLAGS) -o wifire ./cmd
