@@ -1,4 +1,4 @@
-RULESDIR=../build
+RULESDIR=../builder
 RULES=go
 include $(RULESDIR)/rules.mk
 
