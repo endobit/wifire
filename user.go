@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-type GetUserDataResponse struct {
+type getUserDataResponse struct {
 	UserID         string  `json:"userId"`
 	GivenName      string  `json:"givenName"`
 	FamiltyName    string  `json:"familyName"`
@@ -16,26 +16,26 @@ type GetUserDataResponse struct {
 	Cognito        string  `json:"cognito"`
 	CustomerID     string  `json:"customerId"`
 	UrbanAirshipID string  `json:"urbanAirshipId"`
-	Teams          []Team  `json:"teams"`
-	Things         []Thing `json:"things"`
+	Teams          []team  `json:"teams"`
+	Things         []thing `json:"things"`
 }
 
-type Team struct {
+type team struct {
 	ID   string `json:"teamID"`
 	Name string `json:"teamName"`
 }
 
-type Thing struct {
+type thing struct {
 	Name         string     `json:"thingName"`
 	FriendlyName string     `json:"friendlyName"`
 	DeviceTypeID string     `json:"deviceTypeId"`
 	UserID       string     `json:"userId"`
 	Status       string     `json:"status"`
 	ProductID    string     `json:"productId"`
-	GrillModel   GrillModel `json:"grillModel"`
+	GrillModel   grillModel `json:"grillModel"`
 }
 
-type GrillModel struct {
+type grillModel struct {
 	ModuelNumber       string `json:"modelNumber"`
 	Group              string `json:"group"`
 	IOTCapable         bool   `json:"iotCapable"`
@@ -43,23 +43,24 @@ type GrillModel struct {
 	IsTraeger          bool   `json:"isTraegerBrand"`
 	Region             string `json:"regionIso"`
 	DeviceTypeID       string `json:"deviceTypeId"`
-	Image              Image  `json:"image"`
+	Image              image  `json:"image"`
 	OwnersManualURL    string `json:"ownersManualUrl"`
 	Name               string `json:"name"`
 	Description        string `json:"description"`
 	ReferenceProductID string `json:"referenceProductId"`
 }
 
-type Image struct {
+type image struct {
 	DefaultHost string `json:"defaultHost"`
 	Endpoint    string `json:"endpoint"`
 	Name        string `json:"name"`
 }
 
-func (w WiFire) UserData() (*GetUserDataResponse, error) {
+// UserData fetches the /prod/users/self information from the WiFire API.
+func (w WiFire) UserData() (*getUserDataResponse, error) {
 	client := http.Client{}
 
-	req, err := http.NewRequest("GET", w.config.baseURL+"/prod/users/self", nil)
+	req, err := http.NewRequest("GET", w.config.baseURL+"/prod/users/self", http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -71,12 +72,14 @@ func (w WiFire) UserData() (*GetUserDataResponse, error) {
 		return nil, err
 	}
 
+	defer r.Body.Close()
+
 	resp, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	var data GetUserDataResponse
+	var data getUserDataResponse
 
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, err

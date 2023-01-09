@@ -15,13 +15,8 @@ type getMQTTResponse struct {
 	SignedURL         string `json:"signedUrl"`
 }
 
-// type MQTT struct {
-// 	Expires time.Time
-// 	URL     string
-// }
-
-func (w WiFire) GetMQTT() (mqtt.Client, error) {
-	req, err := http.NewRequest("POST", w.config.baseURL+"/prod/mqtt-connections", nil)
+func (w WiFire) getMQTT() (mqtt.Client, error) {
+	req, err := http.NewRequest("POST", w.config.baseURL+"/prod/mqtt-connections", http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -34,6 +29,8 @@ func (w WiFire) GetMQTT() (mqtt.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	defer r.Body.Close()
 
 	resp, err := io.ReadAll(r.Body)
 	if err != nil {

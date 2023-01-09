@@ -7,6 +7,8 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
+// Status is the grill status returned from the MQTT subscription. If there was
+// an error receiving the message the Error field is set.
 type Status struct {
 	Ambient  int
 	Grill    int
@@ -51,6 +53,7 @@ type status struct {
 	Units             int    `json:"units"`
 }
 
+// Status reqisters fn as the handler for grill Status messages.
 func (g Grill) Status(fn func(Status)) error {
 	if !g.client.IsConnected() {
 		if err := g.connect(); err != nil {

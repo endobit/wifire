@@ -1,3 +1,6 @@
+// Package wifire implements a client for connecting to the Traeger REST and
+// MQTT APIs. The goal is to support temperature monitoring with a potential
+// longterm goal of controlling the grill.
 package wifire
 
 import (
@@ -8,6 +11,7 @@ import (
 	"time"
 )
 
+// WiFire is a handle for the WiFire API connection.
 type WiFire struct {
 	token        string
 	tokenExpires time.Time
@@ -125,6 +129,8 @@ func (w *WiFire) refresh() error {
 	if err != nil {
 		return err
 	}
+
+	defer r.Body.Close()
 
 	resp, err := io.ReadAll(r.Body)
 	if err != nil {

@@ -1,0 +1,64 @@
+issues:
+  include:
+    - EXC0004
+    - EXC0005
+    - EXC0011
+    - EXC0012
+    - EXC0013
+    - EXC0014
+    - EXC0015
+
+linters:
+  enable:
+    - asciicheck
+    - bodyclose
+    - depguard
+    - dogsled
+    - errname
+    - errorlint
+    - exportloopref
+    - forcetypeassert
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - importas
+    - lll
+    - makezero
+    - misspell
+    - nakedret
+    - nestif
+    - nilerr
+    - prealloc
+    - predeclared
+    - revive
+    - rowserrcheck
+    - stylecheck
+    - unconvert
+    - unparam
+    - wastedassign
+linters-settings:
+  errorlint:
+    errorf: true
+  gosec:
+    excludes:
+      - G204
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    settings:
+      hugeParam:
+        sizeThreshold: 256
+      rangeValCopy:
+        sizeThreshold: 256
+  misspell:
+    locale: US
