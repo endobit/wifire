@@ -21,7 +21,7 @@ type getMQTTResponse struct {
 // }
 
 func (w WiFire) GetMQTT() (mqtt.Client, error) {
-	req, err := http.NewRequest("POST", w.config.URL+"/prod/mqtt-connections", nil)
+	req, err := http.NewRequest("POST", w.config.baseURL+"/prod/mqtt-connections", nil)
 	if err != nil {
 		return nil, err
 	}

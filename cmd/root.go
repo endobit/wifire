@@ -34,10 +34,8 @@ func newRootCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			w, err := wifire.New(wifire.Config{
-				Username: username,
-				Password: password,
-			})
+			w, err := wifire.New(wifire.Credentials(username, password),
+				wifire.Logging(log.Logger, zerolog.GlobalLevel()))
 			if err != nil {
 				panic(err)
 			}

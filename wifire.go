@@ -11,21 +11,21 @@ import (
 type WiFire struct {
 	token        string
 	tokenExpires time.Time
-	config       Config
+	config       config
 }
 
-type Config struct {
-	Username   string
-	Password   string
-	CognitoURL string
-	URL        string
-	Client     string
+type config struct {
+	username   string
+	password   string
+	cognitoURL string
+	baseURL    string
+	clientID   string
 }
 
-var defaultConfig = Config{
-	CognitoURL: "https://cognito-idp.us-west-2.amazonaws.com/",
-	URL:        "https://1ywgyc65d1.execute-api.us-west-2.amazonaws.com",
-	Client:     "2fuohjtqv1e63dckp5v84rau0j",
+var defaultConfig = config{
+	cognitoURL: "https://cognito-idp.us-west-2.amazonaws.com/",
+	baseURL:    "https://1ywgyc65d1.execute-api.us-west-2.amazonaws.com",
+	clientID:   "2fuohjtqv1e63dckp5v84rau0j",
 }
 
 type requestTokenBody struct {
@@ -39,11 +39,11 @@ type authParameters struct {
 	Password string `json:"PASSWORD"`
 }
 
-type RequestTokenResponse struct {
-	AuthenticationResult AuthenticationResult
+type requestTokenResponse struct {
+	AuthenticationResult authenticationResult
 }
 
-type AuthenticationResult struct {
+type authenticationResult struct {
 	AccessToken  string `json:"AccessToken"`
 	ExpiresIn    int    `json:"ExpiresIn"`
 	IDToken      string `json:"IdToken"`
@@ -51,31 +51,43 @@ type AuthenticationResult struct {
 	TokenType    string `json:"TokenType"`
 }
 
+// Credentials is an option setting function for New(). It sets the user and
+// password credentials for logging into the API. These are the same values used
+// by the Traeger App.
+func Credentials(username, password string) func(*WiFire) {
+	return func(w *WiFire) {
+		w.config.username = username
+		w.config.password = password
+	}
+}
+
+// ClientID is an option setting function for New(). It sets the client
+// identifier for the WiFire API. This should be set to the ID of the Traeger
+// App.
+func ClientID(id string) func(*WiFire) {
+	return func(w *WiFire) {
+		w.config.clientID = id
+	}
+}
+
+// URLs is an option setting function for New(). It sets the WiFire API URLs
+// used to pull the user information and obtain a token.
+func URLs(base, cognito string) func(*WiFire) {
+	return func(w *WiFire) {
+		w.config.baseURL = base
+		w.config.cognitoURL = cognito
+	}
+}
+
 // New returns a new WiFire connection or an error.
-func New(cfg Config) (*WiFire, error) {
+func New(opts ...func(*WiFire)) (*WiFire, error) {
 	w := WiFire{config: defaultConfig}
 
-	if cfg.Username != "" {
-		w.config.Username = cfg.Username
+	for _, o := range opts {
+		o(&w)
 	}
 
-	if cfg.Password != "" {
-		w.config.Password = cfg.Password
-	}
-
-	if cfg.CognitoURL != "" {
-		w.config.CognitoURL = cfg.CognitoURL
-	}
-
-	if cfg.URL != "" {
-		w.config.URL = cfg.URL
-	}
-
-	if cfg.Client != "" {
-		w.config.Client = cfg.Client
-	}
-
-	if err := w.Refresh(); err != nil {
+	if err := w.refresh(); err != nil {
 		return nil, err
 	}
 
@@ -83,14 +95,14 @@ func New(cfg Config) (*WiFire, error) {
 
 }
 
-func (w *WiFire) Refresh() error {
+func (w *WiFire) refresh() error {
 	body := requestTokenBody{
 		AuthFlow: "USER_PASSWORD_AUTH",
 		AuthParameters: authParameters{
-			Username: w.config.Username,
-			Password: w.config.Password,
+			Username: w.config.username,
+			Password: w.config.password,
 		},
-		ClientID: w.config.Client,
+		ClientID: w.config.clientID,
 	}
 
 	b, err := json.Marshal(body)
@@ -99,7 +111,7 @@ func (w *WiFire) Refresh() error {
 	}
 
 	client := http.Client{}
-	req, err := http.NewRequest("POST", w.config.CognitoURL, bytes.NewReader(b))
+	req, err := http.NewRequest("POST", w.config.cognitoURL, bytes.NewReader(b))
 	if err != nil {
 		return err
 	}
@@ -119,7 +131,7 @@ func (w *WiFire) Refresh() error {
 		return err
 	}
 
-	var auth RequestTokenResponse
+	var auth requestTokenResponse
 
 	if err := json.Unmarshal(resp, &auth); err != nil {
 		return err

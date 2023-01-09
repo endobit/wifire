@@ -59,7 +59,7 @@ type Image struct {
 func (w WiFire) UserData() (*GetUserDataResponse, error) {
 	client := http.Client{}
 
-	req, err := http.NewRequest("GET", w.config.URL+"/prod/users/self", nil)
+	req, err := http.NewRequest("GET", w.config.baseURL+"/prod/users/self", nil)
 	if err != nil {
 		return nil, err
 	}
