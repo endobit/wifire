@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"github.com/rs/zerolog/log"
 )
 
 type getMQTTResponse struct {
@@ -53,13 +52,19 @@ func (w WiFire) getMQTT() (mqtt.Client, error) {
 }
 
 func connect(c mqtt.Client) {
-	log.Info().Msg("connect")
+	if Logger != nil {
+		Logger(LogInfo, "wifire", "connect")
+	}
 }
 
 func connectionLost(c mqtt.Client, err error) {
-	log.Err(err).Msg("connectionLost")
+	if Logger != nil {
+		Logger(LogInfo, "wifire", "connectionLost")
+	}
 }
 
 func reconnecting(c mqtt.Client, o *mqtt.ClientOptions) {
-	log.Info().Msg("reconnecting")
+	if Logger != nil {
+		Logger(LogInfo, "wifire", "reconnecting")
+	}
 }

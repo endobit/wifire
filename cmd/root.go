@@ -13,10 +13,34 @@ import (
 	"github.com/endobit/wifire.git"
 )
 
+func logger(level wifire.LogLevel, component, msg string) {
+	var e *zerolog.Event
+
+	switch level {
+	case wifire.LogDebug:
+		e = log.Debug()
+	case wifire.LogInfo:
+		e = log.Info()
+	case wifire.LogWarn:
+		e = log.Warn()
+	case wifire.LogError:
+		e = log.Error()
+	default:
+		return
+	}
+
+	if component != "" {
+		e = e.Str("component", component)
+	}
+
+	e.Msg(msg)
+}
+
 func newRootCmd() *cobra.Command {
 	var (
 		username, password string
 		logLevel           string
+		debug              bool
 	)
 
 	cmd := cobra.Command{
@@ -34,8 +58,11 @@ func newRootCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			w, err := wifire.New(wifire.Credentials(username, password),
-				wifire.Logging(log.Logger, zerolog.GlobalLevel()))
+			if debug {
+				wifire.Logger = logger
+			}
+
+			w, err := wifire.New(wifire.Credentials(username, password))
 			if err != nil {
 				panic(err)
 			}
@@ -52,9 +79,7 @@ func newRootCmd() *cobra.Command {
 
 			defer g.Disconnect()
 
-			if err := g.Status(statusHandler); err != nil {
-				panic(err)
-			}
+			go status(g)
 
 			catch := make(chan os.Signal, 1)
 			signal.Notify(catch, syscall.SIGINT, syscall.SIGTERM)
@@ -65,6 +90,7 @@ func newRootCmd() *cobra.Command {
 	}
 
 	cmd.PersistentFlags().StringVar(&logLevel, "log", zerolog.LevelInfoValue, "log level")
+	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "debug wifire API")
 	cmd.Flags().StringVar(&username, "username", "", "account username")
 	cmd.Flags().StringVar(&password, "password", "", "account password")
 
@@ -80,15 +106,26 @@ func newRootCmd() *cobra.Command {
 	return &cmd
 }
 
-func statusHandler(s wifire.Status) {
-	if s.Error != nil {
-		log.Err(s.Error).Msg("invalid status")
+func status(g *wifire.Grill) {
+	ch := make(chan wifire.Status, 1)
+
+	if err := g.SubscribeStatus(ch); err != nil {
+		log.Err(err).Msg("cannot subscribe to status")
 		return
 	}
 
-	log.Info().
-		Int("ambient", s.Ambient).
-		Int("grill", s.Grill).
-		Int("probe", s.Probe).
-		Send()
+	for {
+		s := <-ch
+		if s.Error != nil {
+			log.Err(s.Error).Msg("invalid status")
+		}
+
+		log.Info().
+			Int("ambient", s.Ambient).
+			Int("grill", s.Grill).
+			Int("probe", s.Probe).
+			Interface("data", s).
+			Send()
+	}
+
 }
