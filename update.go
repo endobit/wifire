@@ -10,21 +10,21 @@ import (
 // Status is the grill status returned from the MQTT subscription. If there was
 // an error receiving the message the Error field is set.
 type Status struct {
-	Error           error
-	Ambient         int
-	Connected       bool
-	Grill           int
-	GrillSet        int
-	KeepWarm        int
-	PelletLevel     int
-	Probe           int
-	ProbeAlarmFired bool
-	ProbeConnected  bool
-	ProbeSet        bool
-	RealTime        int
-	Smoke           int
-	Time            time.Time
-	Units           int
+	Error           error     `json:"error"`
+	Ambient         int       `json:"ambient"`
+	Connected       bool      `json:"connected"`
+	Grill           int       `json:"grill"`
+	GrillSet        int       `json:"grill_set"`
+	KeepWarm        int       `json:"keep_warm,omitempty"`
+	PelletLevel     int       `json:"pellet_level,omitempty"`
+	Probe           int       `json:"probe,omitempty"`
+	ProbeAlarmFired bool      `json:"probe_alarm_fired,omitempty"`
+	ProbeConnected  bool      `json:"probe_connected,omitempty"`
+	ProbeSet        int       `json:"probe_set,omitempty"`
+	RealTime        int       `json:"real_time,omitempty"`
+	Smoke           int       `json:"smoke,omitempty"`
+	Time            time.Time `json:"time"`
+	Units           int       `json:"units"`
 }
 
 type prodThingUpdate struct {
@@ -96,7 +96,7 @@ func newUpdate(data []byte) Status {
 		Probe:           msg.Status.Probe,
 		ProbeAlarmFired: msg.Status.ProbeAlarmFired != 0,
 		ProbeConnected:  msg.Status.ProbeConnected != 0,
-		ProbeSet:        msg.Status.ProbeSet != 0,
+		ProbeSet:        msg.Status.ProbeSet,
 		RealTime:        msg.Status.RealTime,
 		Smoke:           msg.Status.Smoke,
 		Time:            time.Unix(msg.Status.Time, 0),

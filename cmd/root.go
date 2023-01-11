@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -38,6 +40,7 @@ func logger(level wifire.LogLevel, component, msg string) {
 
 func newRootCmd() *cobra.Command {
 	var (
+		output             string
 		username, password string
 		logLevel           string
 		debug              bool
@@ -79,7 +82,18 @@ func newRootCmd() *cobra.Command {
 
 			defer g.Disconnect()
 
-			go status(g)
+			if output != "" {
+				fout, err := os.Create(output)
+				if err != nil {
+					return err
+				}
+
+				defer fout.Close()
+
+				go status(g, fout)
+			} else {
+				go status(g, nil)
+			}
 
 			catch := make(chan os.Signal, 1)
 			signal.Notify(catch, syscall.SIGINT, syscall.SIGTERM)
@@ -93,6 +107,7 @@ func newRootCmd() *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "debug wifire API")
 	cmd.Flags().StringVar(&username, "username", "", "account username")
 	cmd.Flags().StringVar(&password, "password", "", "account password")
+	cmd.Flags().StringVar(&output, "output", "", "log to file")
 
 	if err := cmd.MarkFlagRequired("username"); err != nil {
 		panic(err)
@@ -102,11 +117,12 @@ func newRootCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(newVersionCmd())
+	cmd.AddCommand(newPlotCmd())
 
 	return &cmd
 }
 
-func status(g *wifire.Grill) {
+func status(g *wifire.Grill, w io.Writer) {
 	ch := make(chan wifire.Status, 1)
 
 	if err := g.SubscribeStatus(ch); err != nil {
@@ -123,9 +139,21 @@ func status(g *wifire.Grill) {
 		log.Info().
 			Int("ambient", s.Ambient).
 			Int("grill", s.Grill).
+			Int("grill_set", s.GrillSet).
 			Int("probe", s.Probe).
-			Interface("data", s).
+			Int("probe_set", s.ProbeSet).
+			Bool("probe_alarm", s.ProbeAlarmFired).
 			Send()
+
+		if w != nil {
+			b, err := json.Marshal(s)
+			if err != nil {
+				log.Err(err).Msg("cannot marshal")
+			}
+
+			_, _ = w.Write(b)
+			_, _ = w.Write([]byte("\n"))
+		}
 	}
 
 }
