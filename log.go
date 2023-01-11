@@ -5,57 +5,67 @@ import (
 	"strings"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
-// Logging is an option setting function for New(). It sets the zerolog logging
-// level for the IOT MQTT calls to the WiFire API. MQTT debug level messages are
-// mapped mapped to the Trace level.
-func Logging(logger zerolog.Logger, level zerolog.Level) func(*WiFire) {
-	return func(w *WiFire) {
-		if level <= zerolog.ErrorLevel {
-			mqtt.ERROR = err{}
-			mqtt.CRITICAL = err{}
-		}
+// LogLevel is the log level for MQTT calls.
+type LogLevel int
 
-		if level <= zerolog.WarnLevel {
-			mqtt.WARN = wrn{}
-		}
+const (
+	_ LogLevel = iota
+	// LogError maps to mqtt.ERROR and mqtt.CRITICAL.
+	LogError
+	// LogWarn maps to mqtt.WARN.
+	LogWarn
+	// LogInfo does not have a mqtt level.
+	LogInfo
+	// LogDebug maps to mqtt.DEBUG.
+	LogDebug
+)
 
-		if level <= zerolog.TraceLevel {
-			mqtt.DEBUG = trc{} // map DEBUG to Trace (really is low level)
-		}
+// Logger is the package global logging handler.
+var Logger func(level LogLevel, component string, message string)
+
+func logf(l LogLevel, format string, v ...interface{}) {
+	if Logger == nil {
+		return
 	}
+
+	Logger(l, "", strings.Trim(fmt.Sprintf(format, v...), "[]"))
 }
 
-func logf(e *zerolog.Event, format string, v ...interface{}) {
-	e.Msg(strings.Trim(fmt.Sprintf(format, v...), "[]"))
-}
+func logln(l LogLevel, v ...interface{}) {
+	if Logger == nil {
+		return
+	}
 
-func logln(e *zerolog.Event, v ...interface{}) {
+	var comp string
+
 	if len(v) > 1 {
-		comp := strings.TrimSpace(fmt.Sprint(v[0]))
-		comp = strings.Trim(comp, "[]")
-		e = e.Str("component", comp)
+		comp = strings.Trim(strings.TrimSpace(fmt.Sprint(v[0])), "[]")
 		v = v[1:]
 	}
 
-	msg := fmt.Sprint(v...)
-	e.Msg(strings.Trim(msg, "[]"))
+	Logger(l, comp, strings.Trim(fmt.Sprint(v...), "[]"))
 }
 
 type (
-	trc struct{}
+	dbg struct{}
 	wrn struct{}
 	err struct{}
 )
 
-func (trc) Printf(format string, v ...interface{}) { logf(log.Trace(), format, v...) }
-func (trc) Println(v ...interface{})               { logln(log.Trace(), v...) }
+func (dbg) Printf(format string, v ...interface{}) { logf(LogDebug, format, v...) }
+func (dbg) Println(v ...interface{})               { logln(LogDebug, v...) }
 
-func (wrn) Printf(format string, v ...interface{}) { logf(log.Warn(), format, v...) }
-func (wrn) Println(v ...interface{})               { logln(log.Warn(), v...) }
+func (wrn) Printf(format string, v ...interface{}) { logf(LogWarn, format, v...) }
+func (wrn) Println(v ...interface{})               { logln(LogWarn, v...) }
 
-func (err) Printf(format string, v ...interface{}) { logf(log.Error(), format, v...) }
-func (err) Println(v ...interface{})               { logln(log.Error(), v...) }
+func (err) Printf(format string, v ...interface{}) { logf(LogError, format, v...) }
+func (err) Println(v ...interface{})               { logln(LogError, v...) }
+
+func init() {
+	mqtt.ERROR = err{}
+	mqtt.CRITICAL = err{}
+	mqtt.WARN = wrn{}
+	mqtt.DEBUG = dbg{}
+}

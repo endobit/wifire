@@ -10,13 +10,21 @@ import (
 // Status is the grill status returned from the MQTT subscription. If there was
 // an error receiving the message the Error field is set.
 type Status struct {
-	Ambient  int
-	Grill    int
-	Probe    int
-	GrillSet int
-	ProbeSet int
-	Time     time.Time
-	Error    error
+	Error           error     `json:"error"`
+	Ambient         int       `json:"ambient"`
+	Connected       bool      `json:"connected"`
+	Grill           int       `json:"grill"`
+	GrillSet        int       `json:"grill_set"`
+	KeepWarm        int       `json:"keep_warm,omitempty"`
+	PelletLevel     int       `json:"pellet_level,omitempty"`
+	Probe           int       `json:"probe,omitempty"`
+	ProbeAlarmFired bool      `json:"probe_alarm_fired,omitempty"`
+	ProbeConnected  bool      `json:"probe_connected,omitempty"`
+	ProbeSet        int       `json:"probe_set,omitempty"`
+	RealTime        int       `json:"real_time,omitempty"`
+	Smoke           int       `json:"smoke,omitempty"`
+	Time            time.Time `json:"time"`
+	Units           int       `json:"units"`
 }
 
 type prodThingUpdate struct {
@@ -35,7 +43,7 @@ type status struct {
 	Errors            int    `json:"errors"`
 	Grill             int    `json:"grill"`
 	InCustom          int    `json:"in_custom"`
-	KeepWarn          int    `json:"keepwarm"`
+	KeepWarm          int    `json:"keepwarm"`
 	PelletLevel       int    `json:"pellet_level"`
 	Probe             int    `json:"probe"` // temperature
 	ProbeAlarmFired   int    `json:"probe_alarm_fired"`
@@ -53,8 +61,9 @@ type status struct {
 	Units             int    `json:"units"`
 }
 
-// Status reqisters fn as the handler for grill Status messages.
-func (g Grill) Status(fn func(Status)) error {
+// SubscribeStatus subscribes to the prod/thing/update for the grill. SubscribeStatus
+// updates are pushed to the returned channel.
+func (g Grill) SubscribeStatus(ch chan Status) error {
 	if !g.client.IsConnected() {
 		if err := g.connect(); err != nil {
 			return err
@@ -62,8 +71,7 @@ func (g Grill) Status(fn func(Status)) error {
 	}
 
 	token := g.client.Subscribe("prod/thing/update/"+g.name, 1, func(c mqtt.Client, m mqtt.Message) {
-		u := newUpdate(m.Payload())
-		fn(u)
+		ch <- newUpdate(m.Payload())
 	})
 
 	token.Wait()
@@ -79,11 +87,19 @@ func newUpdate(data []byte) Status {
 	}
 
 	return Status{
-		Ambient:  msg.Status.Ambient,
-		Grill:    msg.Status.Grill,
-		Probe:    msg.Status.Probe,
-		GrillSet: msg.Status.Set,
-		ProbeSet: msg.Status.ProbeSet,
-		Time:     time.Unix(msg.Status.Time, 0),
+		Ambient:         msg.Status.Ambient,
+		Connected:       msg.Status.Connected,
+		Grill:           msg.Status.Grill,
+		GrillSet:        msg.Status.Set,
+		KeepWarm:        msg.Status.KeepWarm,
+		PelletLevel:     msg.Status.PelletLevel,
+		Probe:           msg.Status.Probe,
+		ProbeAlarmFired: msg.Status.ProbeAlarmFired != 0,
+		ProbeConnected:  msg.Status.ProbeConnected != 0,
+		ProbeSet:        msg.Status.ProbeSet,
+		RealTime:        msg.Status.RealTime,
+		Smoke:           msg.Status.Smoke,
+		Time:            time.Unix(msg.Status.Time, 0),
+		Units:           msg.Status.Units,
 	}
 }
