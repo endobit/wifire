@@ -1,4 +1,4 @@
-module github.com/endobit/wifire.git
+module github.com/endobit/wifire
 
 go 1.17
 
@@ -6,6 +6,7 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/rs/zerolog v1.28.0
 	github.com/spf13/cobra v1.6.1
+	gonum.org/v1/plot v0.12.0
 )
 
 require (
@@ -25,5 +26,4 @@ require (
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
-	gonum.org/v1/plot v0.12.0 // indirect
 )

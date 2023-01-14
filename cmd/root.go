@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/endobit/wifire.git"
+	"github.com/endobit/wifire"
 )
 
 func logger(level wifire.LogLevel, component, msg string) {

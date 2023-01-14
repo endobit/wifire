@@ -12,7 +12,7 @@ import (
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
 
-	"github.com/endobit/wifire.git"
+	"github.com/endobit/wifire"
 )
 
 type tempdata struct {
