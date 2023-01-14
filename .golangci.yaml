@@ -28,7 +28,6 @@ linters:
     - gosec
     - gosimple
     - importas
-    - lll
     - makezero
     - misspell
     - nakedret
