@@ -16,7 +16,7 @@ import (
 )
 
 type tempdata struct {
-	time     time.Duration
+	time     float64
 	ambient  int
 	grill    int
 	probe    int
@@ -57,7 +57,7 @@ func newPlotCmd() *cobra.Command {
 				}
 
 				temps = append(temps, tempdata{
-					time:     status.Time.Sub(t0) / time.Minute,
+					time:     status.Time.Sub(t0).Hours(),
 					ambient:  status.Ambient,
 					grill:    status.Grill,
 					probe:    status.Probe,
@@ -66,7 +66,7 @@ func newPlotCmd() *cobra.Command {
 				})
 			}
 
-			return scatter(output, temps)
+			return scatter(t0.Format(time.ANSIC), output, temps)
 		},
 	}
 
@@ -96,29 +96,30 @@ func (t temps) Len() int {
 }
 
 func (a ambientData) XY(i int) (x, y float64) {
-	return float64(a.temps[i].time), float64(a.temps[i].ambient)
+	return a.temps[i].time, float64(a.temps[i].ambient)
 }
 
 func (g grillData) XY(i int) (x, y float64) {
-	return float64(g.temps[i].time), float64(g.temps[i].grill)
+	return g.temps[i].time, float64(g.temps[i].grill)
 }
 
 func (p probeData) XY(i int) (x, y float64) {
-	return float64(p.temps[i].time), float64(p.temps[i].probe)
+	return p.temps[i].time, float64(p.temps[i].probe)
 }
 
 func (g grillSetData) XY(i int) (x, y float64) {
-	return float64(g.temps[i].time), float64(g.temps[i].grillSet)
+	return g.temps[i].time, float64(g.temps[i].grillSet)
 }
 
 func (p probeSetData) XY(i int) (x, y float64) {
-	return float64(p.temps[i].time), float64(p.temps[i].probeSet)
+	return p.temps[i].time, float64(p.temps[i].probeSet)
 }
 
-func scatter(filename string, data []tempdata) error {
+func scatter(title, filename string, data []tempdata) error {
 	p := plot.New()
 
-	p.X.Label.Text = "Minutes"
+	p.Title.Text = title
+	p.X.Label.Text = "Hours"
 	p.Y.Label.Text = "Temperature"
 
 	ambient := ambientData{data}
@@ -152,16 +153,16 @@ func scatter(filename string, data []tempdata) error {
 		return err
 	}
 
-	sa.Color = color.RGBA{G: 255, A: 255}
+	sa.Color = color.Gray{200}
+	sa.FillColor = color.Gray{200}
+
 	sg.Color = color.RGBA{R: 255, A: 255}
-	sp.Color = color.RGBA{B: 255, A: 255}
-
 	sgs.LineStyle.Dashes = []vg.Length{vg.Points(1), vg.Points(5)}
-	sgs.Color = color.RGBA{R: 255, A: 255}
-	sps.LineStyle.Dashes = []vg.Length{vg.Points(1), vg.Points(5)}
-	sps.Color = color.RGBA{B: 255, A: 255}
+	sgs.Color = sg.Color
 
-	sa.FillColor = color.RGBA{G: 255, A: 255}
+	sp.Color = color.RGBA{B: 255, A: 255}
+	sps.LineStyle.Dashes = []vg.Length{vg.Points(1), vg.Points(5)}
+	sps.Color = sp.Color
 
 	p.Add(plotter.NewGrid(), sa, sg, sp, sgs, sps)
 	p.Legend.Add("air", sa)
