@@ -1,3 +1,4 @@
+// package main implements the wifire cli.
 package main
 
 import (
