@@ -10,7 +10,7 @@ import (
 // Status is the grill status returned from the MQTT subscription. If there was
 // an error receiving the message the Error field is set.
 type Status struct {
-	Error           error     `json:"error"`
+	Error           error     `json:"error,omitempty"`
 	Ambient         int       `json:"ambient"`
 	Connected       bool      `json:"connected"`
 	Grill           int       `json:"grill"`

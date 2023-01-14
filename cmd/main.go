@@ -12,8 +12,7 @@ var version string
 func main() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	root := newRootCmd()
-	if err := root.Execute(); err != nil {
+	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(-1)
 	}
 }
