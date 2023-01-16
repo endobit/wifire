@@ -11,6 +11,7 @@ import (
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
+	"gonum.org/v1/plot/vg/draw"
 
 	"github.com/endobit/wifire"
 )
@@ -26,8 +27,9 @@ type tempdata struct {
 
 func newPlotCmd() *cobra.Command {
 	var (
-		input  string
-		output string
+		input   string
+		output  string
+		markers []time.Duration
 	)
 
 	cmd := cobra.Command{
@@ -66,12 +68,17 @@ func newPlotCmd() *cobra.Command {
 				})
 			}
 
-			return scatter(t0.Format(time.ANSIC), output, temps)
+			hours := make([]float64, len(markers))
+			for i, m := range markers {
+				hours[i] = m.Hours()
+			}
+			return scatter(t0.Format(time.ANSIC), output, temps, hours)
 		},
 	}
 
 	cmd.Flags().StringVarP(&input, "input", "i", "", "input file")
 	cmd.Flags().StringVarP(&output, "output", "o", "wifire.png", "output file")
+	cmd.Flags().DurationSliceVar(&markers, "marker", nil, "set a time marker (e.g. \"4h30m\") ")
 
 	if err := cmd.MarkFlagRequired("input"); err != nil {
 		panic(err)
@@ -111,11 +118,24 @@ func (g grillSetData) XY(i int) (x, y float64) {
 	return g.temps[i].time, float64(g.temps[i].grillSet)
 }
 
+func (g grillSetData) Max() float64 {
+	var max float64
+
+	for i := 0; i < g.Len(); i++ {
+		_, y := g.XY(i)
+		if y > max {
+			max = y
+		}
+	}
+
+	return max
+}
+
 func (p probeSetData) XY(i int) (x, y float64) {
 	return p.temps[i].time, float64(p.temps[i].probeSet)
 }
 
-func scatter(title, filename string, data []tempdata) error {
+func scatter(title, filename string, data []tempdata, markers []float64) error {
 	p := plot.New()
 
 	p.Title.Text = title
@@ -153,6 +173,20 @@ func scatter(title, filename string, data []tempdata) error {
 		return err
 	}
 
+	marks := make(plotter.XYs, len(markers))
+	for i, x := range markers {
+		marks[i].X = x
+		marks[i].Y = grillSet.Max() / 2
+	}
+	m, err := plotter.NewScatter(marks)
+	if err != nil {
+		return err
+	}
+
+	m.GlyphStyle.Shape = draw.CrossGlyph{}
+	m.GlyphStyle.Radius = vg.Points(4)
+	m.Color = color.RGBA{G: 100, A: 255}
+
 	sa.Color = color.Gray{200}
 	sa.FillColor = color.Gray{200}
 
@@ -164,10 +198,11 @@ func scatter(title, filename string, data []tempdata) error {
 	sps.LineStyle.Dashes = []vg.Length{vg.Points(1), vg.Points(5)}
 	sps.Color = sp.Color
 
-	p.Add(plotter.NewGrid(), sa, sg, sp, sgs, sps)
+	p.Add(plotter.NewGrid(), sa, sg, sp, sgs, sps, m)
 	p.Legend.Add("air", sa)
 	p.Legend.Add("grill", sg)
 	p.Legend.Add("probe", sp)
+	p.Legend.Add("events", m)
 
 	if err := p.Save(800, 300, filename); err != nil {
 		return err
