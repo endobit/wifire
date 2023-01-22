@@ -83,7 +83,7 @@ func newRootCmd() *cobra.Command {
 			defer g.Disconnect()
 
 			if output != "" {
-				fout, err := os.Create(output)
+				fout, err := os.OpenFile(output, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o666)
 				if err != nil {
 					return err
 				}
