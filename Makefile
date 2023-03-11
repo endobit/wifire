@@ -1,8 +1,11 @@
+BUILDER=./.builder
 RULES=go
-include builder.mk
+include $(BUILDER)/rules.mk
+$(BUILDER)/rules.mk:
+	-go run github.com/endobit/builder@latest init
 
 build::
-	go build $(GO_LDFLAGS) -o wifire ./cmd
+	$(GO_BUILD) -o wifire ./cmd
 
 clean::
-	rm -f wifire
+	-rm wifire
