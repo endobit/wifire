@@ -2,7 +2,6 @@ package wifire
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 )
 
@@ -74,14 +73,9 @@ func (w WiFire) UserData() (*getUserDataResponse, error) { //nolint:revive // re
 
 	defer r.Body.Close()
 
-	resp, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-
 	var data getUserDataResponse
 
-	if err := json.Unmarshal(resp, &data); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		return nil, err
 	}
 
