@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.4.2
-	github.com/rs/zerolog v1.29.0
+	github.com/rs/zerolog v1.29.1
 	github.com/spf13/cobra v1.6.1
 	gonum.org/v1/plot v0.12.0
 )
