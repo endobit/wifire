@@ -1,41 +1,43 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slog"
 
+	"github.com/endobit/clog"
 	"github.com/endobit/wifire"
 )
 
 func logger(level wifire.LogLevel, component, msg string) {
-	var e *zerolog.Event
+	var sl slog.Level
 
 	switch level {
 	case wifire.LogDebug:
-		e = log.Debug()
+		sl = slog.LevelDebug
 	case wifire.LogInfo:
-		e = log.Info()
+		sl = slog.LevelInfo
 	case wifire.LogWarn:
-		e = log.Warn()
+		sl = slog.LevelWarn
 	case wifire.LogError:
-		e = log.Error()
+		sl = slog.LevelError
 	default:
 		return
 	}
 
 	if component != "" {
-		e = e.Str("component", component)
+		slog.LogAttrs(context.TODO(), sl, msg, slog.String("component", component))
+	} else {
+		slog.LogAttrs(context.TODO(), sl, msg)
 	}
-
-	e.Msg(msg)
 }
 
 func newRootCmd() *cobra.Command {
@@ -51,12 +53,14 @@ func newRootCmd() *cobra.Command {
 		Short:   "Traeger WiFire Grill Util",
 		Version: version,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			level, err := zerolog.ParseLevel(logLevel)
-			if err != nil {
+			var level slog.Level
+
+			if err := level.UnmarshalText([]byte(logLevel)); err != nil {
 				return fmt.Errorf("invalid log level %q", logLevel)
 			}
 
-			zerolog.SetGlobalLevel(level)
+			opts := clog.HandlerOptions{Level: level}
+			slog.SetDefault(slog.New(opts.NewHandler(os.Stderr)))
 
 			return nil
 		},
@@ -103,7 +107,8 @@ func newRootCmd() *cobra.Command {
 		},
 	}
 
-	cmd.PersistentFlags().StringVar(&logLevel, "log", zerolog.LevelInfoValue, "log level")
+	info := strings.ToLower(slog.LevelInfo.String())
+	cmd.PersistentFlags().StringVar(&logLevel, "log", info, "log level")
 	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "debug wifire API")
 	cmd.Flags().StringVar(&username, "username", "", "account username")
 	cmd.Flags().StringVar(&password, "password", "", "account password")
@@ -126,29 +131,28 @@ func status(g *wifire.Grill, w io.Writer) {
 	ch := make(chan wifire.Status, 1)
 
 	if err := g.SubscribeStatus(ch); err != nil {
-		log.Err(err).Msg("cannot subscribe to status")
+		slog.Error("cannot subscribe to status", "error", err)
 		return
 	}
 
 	for {
 		s := <-ch
 		if s.Error != nil {
-			log.Err(s.Error).Msg("invalid status")
+			slog.Error("invalid status", "error", s.Error)
 		}
 
-		log.Info().
-			Int("ambient", s.Ambient).
-			Int("grill", s.Grill).
-			Int("grill_set", s.GrillSet).
-			Int("probe", s.Probe).
-			Int("probe_set", s.ProbeSet).
-			Bool("probe_alarm", s.ProbeAlarmFired).
-			Send()
+		slog.LogAttrs(context.TODO(), slog.LevelInfo, "",
+			slog.Int("ambient", s.Ambient),
+			slog.Int("grill", s.Grill),
+			slog.Int("grill_set", s.GrillSet),
+			slog.Int("probe", s.Probe),
+			slog.Int("probe_set", s.ProbeSet),
+			slog.Bool("probe_alarm", s.ProbeAlarmFired))
 
 		if w != nil {
 			b, err := json.Marshal(s)
 			if err != nil {
-				log.Err(err).Msg("cannot marshal")
+				slog.Error("cannot marshal", "error", err)
 			}
 
 			_, _ = w.Write(b)
