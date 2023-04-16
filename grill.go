@@ -25,11 +25,7 @@ func (g *Grill) Connect() error {
 	}
 
 	g.client = client
-	if err := g.connect(); err != nil {
-		return err
-	}
-
-	return nil
+	return g.connect()
 }
 
 // Disconnect closed the MQTT connection to the Grill.

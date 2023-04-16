@@ -45,19 +45,19 @@ func (w WiFire) getMQTT() (mqtt.Client, error) {
 	return mqtt.NewClient(opts), nil
 }
 
-func connect(c mqtt.Client) {
+func connect(_ mqtt.Client) {
 	if Logger != nil {
 		Logger(LogInfo, "wifire", "connect")
 	}
 }
 
-func connectionLost(c mqtt.Client, err error) {
+func connectionLost(_ mqtt.Client, _ error) {
 	if Logger != nil {
 		Logger(LogInfo, "wifire", "connectionLost")
 	}
 }
 
-func reconnecting(c mqtt.Client, o *mqtt.ClientOptions) {
+func reconnecting(_ mqtt.Client, _ *mqtt.ClientOptions) {
 	if Logger != nil {
 		Logger(LogInfo, "wifire", "reconnecting")
 	}
