@@ -51,11 +51,7 @@ func newPlotCmd() *cobra.Command {
 				return err
 			}
 
-			if err := plot.Save(800, 300, output); err != nil {
-				return err
-			}
-
-			return nil
+			return plot.Save(800, 300, output)
 		},
 	}
 

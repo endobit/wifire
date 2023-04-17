@@ -2,7 +2,6 @@ package wifire
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -31,14 +30,9 @@ func (w WiFire) getMQTT() (mqtt.Client, error) {
 
 	defer r.Body.Close()
 
-	resp, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-
 	var data getMQTTResponse
 
-	if err := json.Unmarshal(resp, &data); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		return nil, err
 	}
 
@@ -51,19 +45,19 @@ func (w WiFire) getMQTT() (mqtt.Client, error) {
 	return mqtt.NewClient(opts), nil
 }
 
-func connect(c mqtt.Client) {
+func connect(_ mqtt.Client) {
 	if Logger != nil {
 		Logger(LogInfo, "wifire", "connect")
 	}
 }
 
-func connectionLost(c mqtt.Client, err error) {
+func connectionLost(_ mqtt.Client, _ error) {
 	if Logger != nil {
 		Logger(LogInfo, "wifire", "connectionLost")
 	}
 }
 
-func reconnecting(c mqtt.Client, o *mqtt.ClientOptions) {
+func reconnecting(_ mqtt.Client, _ *mqtt.ClientOptions) {
 	if Logger != nil {
 		Logger(LogInfo, "wifire", "reconnecting")
 	}

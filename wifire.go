@@ -6,7 +6,6 @@ package wifire
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
 	"time"
 )
@@ -132,14 +131,9 @@ func (w *WiFire) refresh() error {
 
 	defer r.Body.Close()
 
-	resp, err := io.ReadAll(r.Body)
-	if err != nil {
-		return err
-	}
-
 	var auth requestTokenResponse
 
-	if err := json.Unmarshal(resp, &auth); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&auth); err != nil {
 		return err
 	}
 

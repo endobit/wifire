@@ -4,14 +4,15 @@ package main
 import (
 	"os"
 
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	"golang.org/x/exp/slog"
+
+	"github.com/endobit/clog"
 )
 
 var version string
 
 func main() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	slog.SetDefault(slog.New(clog.NewHandler(os.Stderr)))
 
 	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(-1)
