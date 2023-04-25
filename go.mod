@@ -4,9 +4,9 @@ go 1.17
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.4.2
-	github.com/endobit/clog v0.2.0
+	github.com/endobit/clog v0.3.0
 	github.com/spf13/cobra v1.7.0
-	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
+	golang.org/x/exp v0.0.0-20230420155640-133eef4313cb
 	gonum.org/v1/plot v0.12.0
 )
 
