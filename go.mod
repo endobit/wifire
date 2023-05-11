@@ -1,6 +1,6 @@
 module github.com/endobit/wifire
 
-go 1.17
+go 1.20
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.4.2
