@@ -7,7 +7,7 @@ require (
 	github.com/endobit/clog v0.3.0
 	github.com/spf13/cobra v1.7.0
 	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea
-	gonum.org/v1/plot v0.12.0
+	gonum.org/v1/plot v0.13.0
 )
 
 require (
