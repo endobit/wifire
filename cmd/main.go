@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"golang.org/x/exp/slog"
+	"log/slog"
 
 	"github.com/endobit/clog"
 )
