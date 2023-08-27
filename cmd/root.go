@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slog"
 
 	"github.com/endobit/clog"
 	"github.com/endobit/wifire"
