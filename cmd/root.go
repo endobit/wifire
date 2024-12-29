@@ -71,17 +71,17 @@ func newRootCmd() *cobra.Command {
 
 			w, err := wifire.New(wifire.Credentials(username, password))
 			if err != nil {
-				panic(err)
+				return err
 			}
 
 			data, err := w.UserData()
 			if err != nil {
-				panic(err)
+				return err
 			}
 
 			g := w.NewGrill(data.Things[0].Name)
 			if err := g.Connect(); err != nil {
-				panic(err)
+				return err
 			}
 
 			defer g.Disconnect()

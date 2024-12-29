@@ -2,6 +2,7 @@ package wifire
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 )
 
@@ -72,6 +73,10 @@ func (w WiFire) UserData() (*getUserDataResponse, error) { //nolint:revive // re
 	}
 
 	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		return nil, errors.New("failed to fetch user data")
+	}
 
 	var data getUserDataResponse
 
