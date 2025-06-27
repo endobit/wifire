@@ -43,8 +43,8 @@ const (
 
 // NewPlotter returns a Plotter configured with the options o. If o is empty the
 // default settings are used.
-func NewPlotter(o PlotterOptions) *Plotter {
-	p := Plotter{
+func NewPlotter(options *PlotterOptions) *Plotter {
+	p := Plotter{ //nolint:varnamelen
 		options: PlotterOptions{
 			AmbientColor:     color.Gray{200},
 			AmbientFillColor: color.Gray{200},
@@ -54,29 +54,29 @@ func NewPlotter(o PlotterOptions) *Plotter {
 		},
 	}
 
-	p.options.Title = o.Title
-	p.options.Period = o.Period
-	p.options.Data = o.Data
-	p.options.Markers = o.Markers
+	p.options.Title = options.Title
+	p.options.Period = options.Period
+	p.options.Data = options.Data
+	p.options.Markers = options.Markers
 
-	if o.AmbientColor != nil {
-		p.options.AmbientColor = o.AmbientColor
+	if options.AmbientColor != nil {
+		p.options.AmbientColor = options.AmbientColor
 	}
 
-	if o.AmbientFillColor != nil {
-		p.options.AmbientFillColor = o.AmbientFillColor
+	if options.AmbientFillColor != nil {
+		p.options.AmbientFillColor = options.AmbientFillColor
 	}
 
-	if o.ProbeColor != nil {
-		p.options.ProbeColor = o.ProbeColor
+	if options.ProbeColor != nil {
+		p.options.ProbeColor = options.ProbeColor
 	}
 
-	if o.GrillColor != nil {
-		p.options.GrillColor = o.GrillColor
+	if options.GrillColor != nil {
+		p.options.GrillColor = options.GrillColor
 	}
 
-	if o.AmbientColor != nil {
-		p.options.MarkerColor = o.MarkerColor
+	if options.AmbientColor != nil {
+		p.options.MarkerColor = options.MarkerColor
 	}
 
 	return &p
@@ -85,7 +85,7 @@ func NewPlotter(o PlotterOptions) *Plotter {
 // Plot returns the plot.Plot for the Status data given to the Plotter. The
 // caller should call plot.Save to create the graph files. This allows the
 // caller to define the Plot size and graphics format.
-func (p Plotter) Plot() (*plot.Plot, error) {
+func (p *Plotter) Plot() (*plot.Plot, error) {
 	if p.options.Data == nil {
 		return nil, errors.New("no data")
 	}
@@ -101,6 +101,7 @@ func (p Plotter) Plot() (*plot.Plot, error) {
 		case ByDay:
 			ambient[i].X = d.Hours() / 24
 		}
+
 		ambient[i].Y = float64(p.options.Data[i].Ambient)
 	}
 
@@ -120,6 +121,7 @@ func (p Plotter) Plot() (*plot.Plot, error) {
 		if p.options.Data[i].Grill > maxTemp {
 			maxTemp = p.options.Data[i].Grill
 		}
+
 		grill[i].Y = float64(p.options.Data[i].Grill)
 		probe[i].Y = float64(p.options.Data[i].Probe)
 		grillSet[i].Y = float64(p.options.Data[i].Grill)
@@ -137,6 +139,7 @@ func (p Plotter) Plot() (*plot.Plot, error) {
 		case ByDay:
 			markers[i].X = m.Hours() / 24
 		}
+
 		markers[i].Y = float64(maxTemp) / 2 // put markers in the middle of the data
 	}
 
@@ -210,7 +213,7 @@ func (p *Plotter) grill(actual, set plotter.XYs) error {
 	}
 
 	s.Color = p.options.GrillColor
-	s.LineStyle.Dashes = []vg.Length{vg.Points(1), vg.Points(5)}
+	s.Dashes = []vg.Length{vg.Points(1), vg.Points(5)}
 	p.plot.Add(s)
 
 	return nil
@@ -240,7 +243,7 @@ func (p *Plotter) probe(actual, set plotter.XYs) error {
 	}
 
 	s.Color = p.options.ProbeColor
-	s.LineStyle.Dashes = []vg.Length{vg.Points(1), vg.Points(5)}
+	s.Dashes = []vg.Length{vg.Points(1), vg.Points(5)}
 	p.plot.Add(s)
 
 	return nil
@@ -256,8 +259,8 @@ func (p *Plotter) markers(marks plotter.XYs) error {
 		return err
 	}
 
-	m.GlyphStyle.Shape = draw.CrossGlyph{}
-	m.GlyphStyle.Radius = vg.Points(4)
+	m.Shape = draw.CrossGlyph{}
+	m.Radius = vg.Points(4)
 	m.Color = p.options.MarkerColor
 	p.plot.Add(m)
 	p.plot.Legend.Add("events", m)

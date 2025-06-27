@@ -63,14 +63,14 @@ type status struct {
 
 // SubscribeStatus subscribes to the prod/thing/update for the grill. SubscribeStatus
 // updates are pushed to the returned channel.
-func (g Grill) SubscribeStatus(ch chan Status) error {
+func (g *Grill) SubscribeStatus(ch chan Status) error {
 	if !g.client.IsConnected() {
 		if err := g.connect(); err != nil {
 			return err
 		}
 	}
 
-	token := g.client.Subscribe("prod/thing/update/"+g.name, 1, func(c mqtt.Client, m mqtt.Message) {
+	token := g.client.Subscribe("prod/thing/update/"+g.name, 1, func(_ mqtt.Client, m mqtt.Message) {
 		ch <- newUpdate(m.Payload())
 	})
 

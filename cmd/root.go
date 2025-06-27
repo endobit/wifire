@@ -18,25 +18,25 @@ import (
 )
 
 func logger(level wifire.LogLevel, component, msg string) {
-	var sl slog.Level
+	var slogLevel slog.Level
 
 	switch level {
 	case wifire.LogDebug:
-		sl = slog.LevelDebug
+		slogLevel = slog.LevelDebug
 	case wifire.LogInfo:
-		sl = slog.LevelInfo
+		slogLevel = slog.LevelInfo
 	case wifire.LogWarn:
-		sl = slog.LevelWarn
+		slogLevel = slog.LevelWarn
 	case wifire.LogError:
-		sl = slog.LevelError
+		slogLevel = slog.LevelError
 	default:
 		return
 	}
 
 	if component != "" {
-		slog.LogAttrs(context.TODO(), sl, msg, slog.String("component", component))
+		slog.LogAttrs(context.TODO(), slogLevel, msg, slog.String("component", component))
 	} else {
-		slog.LogAttrs(context.TODO(), sl, msg)
+		slog.LogAttrs(context.TODO(), slogLevel, msg)
 	}
 }
 
@@ -52,7 +52,7 @@ func newRootCmd() *cobra.Command {
 		Use:     "wifire",
 		Short:   "Traeger WiFire Grill Util",
 		Version: version,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			var level slog.Level
 
 			if err := level.UnmarshalText([]byte(logLevel)); err != nil {
@@ -64,7 +64,7 @@ func newRootCmd() *cobra.Command {
 
 			return nil
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			if debug {
 				wifire.Logger = logger
 			}
@@ -79,24 +79,24 @@ func newRootCmd() *cobra.Command {
 				return err
 			}
 
-			g := w.NewGrill(data.Things[0].Name)
-			if err := g.Connect(); err != nil {
+			grill := w.NewGrill(data.Things[0].Name)
+			if err := grill.Connect(); err != nil {
 				return err
 			}
 
-			defer g.Disconnect()
+			defer grill.Disconnect()
 
 			if output != "" {
-				fout, err := os.OpenFile(output, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o666)
+				fout, err := os.OpenFile(output, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o600)
 				if err != nil {
 					return err
 				}
 
 				defer fout.Close()
 
-				go status(g, fout)
+				go status(grill, fout)
 			} else {
-				go status(g, nil)
+				go status(grill, nil)
 			}
 
 			catch := make(chan os.Signal, 1)
@@ -117,6 +117,7 @@ func newRootCmd() *cobra.Command {
 	if err := cmd.MarkFlagRequired("username"); err != nil {
 		panic(err)
 	}
+
 	if err := cmd.MarkFlagRequired("password"); err != nil {
 		panic(err)
 	}
@@ -127,37 +128,37 @@ func newRootCmd() *cobra.Command {
 	return &cmd
 }
 
-func status(g *wifire.Grill, w io.Writer) {
+func status(g *wifire.Grill, out io.Writer) {
 	ch := make(chan wifire.Status, 1)
 
 	if err := g.SubscribeStatus(ch); err != nil {
 		slog.Error("cannot subscribe to status", "error", err)
+
 		return
 	}
 
 	for {
-		s := <-ch
-		if s.Error != nil {
-			slog.Error("invalid status", "error", s.Error)
+		msg := <-ch
+		if msg.Error != nil {
+			slog.Error("invalid status", "error", msg.Error)
 		}
 
 		slog.LogAttrs(context.TODO(), slog.LevelInfo, "",
-			slog.Int("ambient", s.Ambient),
-			slog.Int("grill", s.Grill),
-			slog.Int("grill_set", s.GrillSet),
-			slog.Int("probe", s.Probe),
-			slog.Int("probe_set", s.ProbeSet),
-			slog.Bool("probe_alarm", s.ProbeAlarmFired))
+			slog.Int("ambient", msg.Ambient),
+			slog.Int("grill", msg.Grill),
+			slog.Int("grill_set", msg.GrillSet),
+			slog.Int("probe", msg.Probe),
+			slog.Int("probe_set", msg.ProbeSet),
+			slog.Bool("probe_alarm", msg.ProbeAlarmFired))
 
-		if w != nil {
-			b, err := json.Marshal(s)
+		if out != nil {
+			b, err := json.Marshal(msg)
 			if err != nil {
 				slog.Error("cannot marshal", "error", err)
 			}
 
-			_, _ = w.Write(b)
-			_, _ = w.Write([]byte("\n"))
+			_, _ = out.Write(b)
+			_, _ = out.Write([]byte("\n"))
 		}
 	}
-
 }

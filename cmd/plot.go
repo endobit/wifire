@@ -21,7 +21,7 @@ func newPlotCmd() *cobra.Command {
 	cmd := cobra.Command{
 		Use:   "plot",
 		Short: "Create a scatter plot from a previous run",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			fin, err := os.Open(input)
 			if err != nil {
 				return err
@@ -40,7 +40,7 @@ func newPlotCmd() *cobra.Command {
 				temps = append(temps, status)
 			}
 
-			p := wifire.NewPlotter(wifire.PlotterOptions{
+			p := wifire.NewPlotter(&wifire.PlotterOptions{
 				Title:   temps[0].Time.Format(time.ANSIC),
 				Data:    temps,
 				Markers: markers,

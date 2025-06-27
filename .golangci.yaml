@@ -1,62 +1,82 @@
-issues:
-  include:
-    - EXC0004
-    - EXC0005
-    - EXC0011
-    - EXC0012
-    - EXC0013
-    - EXC0014
-    - EXC0015
-
+version: '2'
 linters:
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - std-error-handling
   enable:
     - asciicheck
     - bodyclose
+    - copyloopvar
     - dogsled
+    - dupl
+    - dupword
+    - errchkjson
     - errname
     - errorlint
-    - exportloopref
+    - exptostd
     - forcetypeassert
+    - funcorder
+    - gocheckcompilerdirectives
     - gocognit
     - goconst
     - gocritic
-    - gocyclo
-    - gofmt
-    - goimports
     - goprintffuncname
     - gosec
-    - gosimple
+    - grouper
+    - iface
     - importas
+    - intrange
+    - lll
+    - loggercheck
     - makezero
+    - mirror
     - misspell
+    - musttag
     - nakedret
     - nestif
     - nilerr
+    - nilnesserr
+    - nilnil
+    - nlreturn
+    - nolintlint
+    - nosprintfhostport
+    - perfsprint
     - prealloc
     - predeclared
+    - reassign
     - revive
     - rowserrcheck
-    - stylecheck
+    - sloglint
+    - tagalign
+    - testpackage
+    - thelper
     - unconvert
     - unparam
+    - usestdlibvars
+    - usetesting
+    - varnamelen
     - wastedassign
-linters-settings:
-  errorlint:
-    errorf: true
-  gosec:
-    excludes:
-      - G204
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    settings:
-      hugeParam:
-        sizeThreshold: 256
-      rangeValCopy:
-        sizeThreshold: 256
-  misspell:
-    locale: US
+    - whitespace
+    - wsl
+  settings:
+    gocritic:
+      disabled-checks:
+        - commentedOutCode
+        - whyNoLint
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+    misspell:
+      locale: US
+    nolintlint:
+      require-specific: true
+    sloglint:
+      msg-style: lowercased
+      key-naming-case: snake
+    varnamelen:
+      max-distance: 20

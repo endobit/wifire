@@ -13,8 +13,8 @@ type getMQTTResponse struct {
 	SignedURL         string `json:"signedUrl"`
 }
 
-func (w WiFire) getMQTT() (mqtt.Client, error) {
-	req, err := http.NewRequest("POST", w.config.baseURL+"/prod/mqtt-connections", http.NoBody)
+func (w *WiFire) getMQTT() (mqtt.Client, error) {
+	req, err := http.NewRequest(http.MethodPost, w.config.baseURL+"/prod/mqtt-connections", http.NoBody)
 	if err != nil {
 		return nil, err
 	}
