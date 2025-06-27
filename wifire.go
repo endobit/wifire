@@ -43,7 +43,7 @@ type authParameters struct {
 }
 
 type requestTokenResponse struct {
-	AuthenticationResult authenticationResult
+	AuthenticationResult authenticationResult `json:"AuthenticationResult"`
 }
 
 type authenticationResult struct {
@@ -95,7 +95,6 @@ func New(opts ...func(*WiFire)) (*WiFire, error) {
 	}
 
 	return &w, nil
-
 }
 
 func (w *WiFire) refresh() error {
@@ -114,7 +113,8 @@ func (w *WiFire) refresh() error {
 	}
 
 	client := http.Client{}
-	req, err := http.NewRequest("POST", w.config.cognitoURL, bytes.NewReader(b))
+
+	req, err := http.NewRequest(http.MethodPost, w.config.cognitoURL, bytes.NewReader(b))
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func (w *WiFire) refresh() error {
 	req.Header.Set("Content-Type", "application/x-amz-json-1.1")
 	req.Header.Set("X-Amz-Target", "AWSCognitoIdentityProviderService.InitiateAuth")
 
-	t0 := time.Now()
+	startTime := time.Now()
 
 	r, err := client.Do(req)
 	if err != nil {
@@ -138,7 +138,7 @@ func (w *WiFire) refresh() error {
 	}
 
 	w.token = auth.AuthenticationResult.IDToken
-	w.tokenExpires = t0.Add(time.Second * time.Duration(auth.AuthenticationResult.ExpiresIn))
+	w.tokenExpires = startTime.Add(time.Second * time.Duration(auth.AuthenticationResult.ExpiresIn))
 
 	return nil
 }

@@ -25,7 +25,7 @@ const (
 // Logger is the package global logging handler.
 var Logger func(level LogLevel, component string, message string)
 
-func logf(l LogLevel, format string, v ...interface{}) {
+func logf(l LogLevel, format string, v ...any) {
 	if Logger == nil {
 		return
 	}
@@ -33,7 +33,7 @@ func logf(l LogLevel, format string, v ...interface{}) {
 	Logger(l, "", strings.Trim(fmt.Sprintf(format, v...), "[]"))
 }
 
-func logln(l LogLevel, v ...interface{}) {
+func logln(level LogLevel, v ...any) {
 	if Logger == nil {
 		return
 	}
@@ -45,7 +45,7 @@ func logln(l LogLevel, v ...interface{}) {
 		v = v[1:]
 	}
 
-	Logger(l, comp, strings.Trim(fmt.Sprint(v...), "[]"))
+	Logger(level, comp, strings.Trim(fmt.Sprint(v...), "[]"))
 }
 
 type (
@@ -54,14 +54,14 @@ type (
 	err struct{}
 )
 
-func (dbg) Printf(format string, v ...interface{}) { logf(LogDebug, format, v...) }
-func (dbg) Println(v ...interface{})               { logln(LogDebug, v...) }
+func (dbg) Printf(format string, v ...any) { logf(LogDebug, format, v...) }
+func (dbg) Println(v ...any)               { logln(LogDebug, v...) }
 
-func (wrn) Printf(format string, v ...interface{}) { logf(LogWarn, format, v...) }
-func (wrn) Println(v ...interface{})               { logln(LogWarn, v...) }
+func (wrn) Printf(format string, v ...any) { logf(LogWarn, format, v...) }
+func (wrn) Println(v ...any)               { logln(LogWarn, v...) }
 
-func (err) Printf(format string, v ...interface{}) { logf(LogError, format, v...) }
-func (err) Println(v ...interface{})               { logln(LogError, v...) }
+func (err) Printf(format string, v ...any) { logf(LogError, format, v...) }
+func (err) Println(v ...any)               { logln(LogError, v...) }
 
 func init() {
 	mqtt.ERROR = err{}

@@ -2,6 +2,7 @@ package wifire
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 )
 
@@ -56,26 +57,31 @@ type image struct {
 }
 
 // UserData fetches the /prod/users/self information from the WiFire API.
-func (w WiFire) UserData() (*getUserDataResponse, error) { //nolint:revive // response is read only user doesn't need to create a new struct
+func (w *WiFire) UserData() (*getUserDataResponse, error) { //nolint:revive
+	// response is read only user doesn't need to create a new struct
 	client := http.Client{}
 
-	req, err := http.NewRequest("GET", w.config.baseURL+"/prod/users/self", http.NoBody)
+	req, err := http.NewRequest(http.MethodGet, w.config.baseURL+"/prod/users/self", http.NoBody)
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Set("authorization", w.token)
 
-	r, err := client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 
-	defer r.Body.Close()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("failed to fetch user data")
+	}
 
 	var data getUserDataResponse
 
-	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, err
 	}
 
