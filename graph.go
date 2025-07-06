@@ -19,6 +19,7 @@ type PlotterOptions struct {
 	AmbientColor     color.Color
 	AmbientFillColor color.Color
 	ProbeColor       color.Color
+	ProbeETAColor    color.Color
 	GrillColor       color.Color
 	MarkerColor      color.Color
 	Data             []Status
@@ -49,6 +50,7 @@ func NewPlotter(options *PlotterOptions) *Plotter {
 			AmbientColor:     color.Gray{200},
 			AmbientFillColor: color.Gray{200},
 			ProbeColor:       color.RGBA{B: 255, A: 255},
+			ProbeETAColor:    color.RGBA{R: 255, G: 165, A: 255}, // Orange for ETA
 			GrillColor:       color.RGBA{R: 255, A: 255},
 			MarkerColor:      color.RGBA{G: 100, A: 255},
 		},
@@ -69,6 +71,10 @@ func NewPlotter(options *PlotterOptions) *Plotter {
 
 	if options.ProbeColor != nil {
 		p.options.ProbeColor = options.ProbeColor
+	}
+
+	if options.ProbeETAColor != nil {
+		p.options.ProbeETAColor = options.ProbeETAColor
 	}
 
 	if options.GrillColor != nil {
@@ -107,6 +113,7 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 
 	grill := make(plotter.XYs, len(ambient))
 	probe := make(plotter.XYs, len(ambient))
+	probeETA := make(plotter.XYs, 0) // Variable length as not all points have ETA
 	grillSet := make(plotter.XYs, len(ambient))
 	probeSet := make(plotter.XYs, len(ambient))
 
@@ -116,6 +123,8 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 	copy(probeSet, ambient)
 
 	var maxTemp int
+	var maxETA float64
+	normalizedTimes := normalizeStatus(p.options.Data)
 
 	for i := range p.options.Data {
 		if p.options.Data[i].Grill > maxTemp {
@@ -126,6 +135,29 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 		probe[i].Y = float64(p.options.Data[i].Probe)
 		grillSet[i].Y = float64(p.options.Data[i].Grill)
 		probeSet[i].Y = float64(p.options.Data[i].Probe)
+
+		// Add probeETA data points only where ETA exists
+		if p.options.Data[i].ProbeETA > 0 {
+			var xValue float64
+			switch p.options.Period {
+			case ByMinute:
+				xValue = normalizedTimes[i].Minutes()
+			case ByHour:
+				xValue = normalizedTimes[i].Hours()
+			case ByDay:
+				xValue = normalizedTimes[i].Hours() / 24
+			}
+
+			etaMinutes := p.options.Data[i].ProbeETA.Duration().Minutes()
+			if etaMinutes > maxETA {
+				maxETA = etaMinutes
+			}
+
+			probeETA = append(probeETA, plotter.XY{
+				X: xValue,
+				Y: etaMinutes,
+			})
+		}
 	}
 
 	markers := make(plotter.XYs, len(p.options.Markers))
@@ -158,6 +190,12 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 
 	if err := p.probe(probe, probeSet); err != nil {
 		return nil, fmt.Errorf("probe: %w", err)
+	}
+
+	if len(probeETA) > 0 {
+		if err := p.probeETA(probeETA, maxTemp, maxETA); err != nil {
+			return nil, fmt.Errorf("probe ETA: %w", err)
+		}
 	}
 
 	if len(markers) > 0 {
@@ -264,6 +302,36 @@ func (p *Plotter) markers(marks plotter.XYs) error {
 	m.Color = p.options.MarkerColor
 	p.plot.Add(m)
 	p.plot.Legend.Add("events", m)
+
+	return nil
+}
+
+func (p *Plotter) probeETA(data plotter.XYs, maxTemp int, maxETA float64) error {
+	if len(data) == 0 {
+		return nil // probeETA is optional
+	}
+
+	// Create a line plot for the ETA data
+	line, err := plotter.NewLine(data)
+	if err != nil {
+		return err
+	}
+
+	line.Color = p.options.ProbeETAColor
+	line.Dashes = []vg.Length{vg.Points(2), vg.Points(3)} // Dotted line to distinguish from other data
+
+	// Scale ETA to fit within the temperature range for visibility
+	// We'll scale it to use the upper portion of the temperature range
+	scaleFactor := float64(maxTemp) * 0.3 / maxETA // Use 30% of temp range for ETA
+
+	// Scale all Y values
+	for i := range data {
+		data[i].Y *= scaleFactor
+		data[i].Y += float64(maxTemp) * 0.7 // Position in upper 30% of chart
+	}
+
+	p.plot.Add(line)
+	p.plot.Legend.Add("probe ETA (scaled)", line)
 
 	return nil
 }
