@@ -10,21 +10,22 @@ import (
 // Status is the grill status returned from the MQTT subscription. If there was
 // an error receiving the message the Error field is set.
 type Status struct {
-	Error           error     `json:"error,omitempty"`
-	Ambient         int       `json:"ambient"`
-	Connected       bool      `json:"connected"`
-	Grill           int       `json:"grill"`
-	GrillSet        int       `json:"grill_set"`
-	KeepWarm        int       `json:"keep_warm,omitempty"`
-	PelletLevel     int       `json:"pellet_level,omitempty"`
-	Probe           int       `json:"probe,omitempty"`
-	ProbeAlarmFired bool      `json:"probe_alarm_fired,omitempty"`
-	ProbeConnected  bool      `json:"probe_connected,omitempty"`
-	ProbeSet        int       `json:"probe_set,omitempty"`
-	RealTime        int       `json:"real_time,omitempty"`
-	Smoke           int       `json:"smoke,omitempty"`
-	Time            time.Time `json:"time"`
-	Units           int       `json:"units"`
+	Error           error        `json:"error,omitempty"`
+	Ambient         int          `json:"ambient"`
+	Connected       bool         `json:"connected"`
+	Grill           int          `json:"grill"`
+	GrillSet        int          `json:"grill_set"`
+	KeepWarm        int          `json:"keep_warm,omitempty"`
+	PelletLevel     int          `json:"pellet_level,omitempty"`
+	Probe           int          `json:"probe,omitempty"`
+	ProbeAlarmFired bool         `json:"probe_alarm_fired,omitempty"`
+	ProbeConnected  bool         `json:"probe_connected,omitempty"`
+	ProbeETA        JSONDuration `json:"probe_eta,omitempty"`
+	ProbeSet        int          `json:"probe_set,omitempty"`
+	RealTime        int          `json:"real_time,omitempty"`
+	Smoke           int          `json:"smoke,omitempty"`
+	Time            time.Time    `json:"time"`
+	Units           int          `json:"units"`
 }
 
 type prodThingUpdate struct {
@@ -102,4 +103,33 @@ func newUpdate(data []byte) Status {
 		Time:            time.Unix(msg.Status.Time, 0),
 		Units:           msg.Status.Units,
 	}
+}
+
+// JSONDuration is a custom type that marshals time.Duration to JSON as a string
+type JSONDuration time.Duration
+
+// MarshalJSON implements json.Marshaler interface for JSONDuration
+func (d JSONDuration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(time.Duration(d).String())
+}
+
+// UnmarshalJSON implements json.Unmarshaler interface for JSONDuration
+func (d *JSONDuration) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	duration, err := time.ParseDuration(s)
+	if err != nil {
+		return err
+	}
+
+	*d = JSONDuration(duration)
+	return nil
+}
+
+// Duration returns the underlying time.Duration
+func (d JSONDuration) Duration() time.Duration {
+	return time.Duration(d)
 }
