@@ -1,7 +1,7 @@
 [![GitHub Actions](https://img.shields.io/github/actions/workflow/status/endobit/wifire/build.yaml?branch=main)](https://github.com/endobit/wifire/actions?query=workflow%3Abuild)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/endobit/wifire)](https://img.shields.io/github/go-mod/go-version/endobit/wifire)
-[![Go Report Card](https://goreportcard.com/badge/github.com/endobit/wifire)](https://goreportcard.com/report/github.com/endobit/wifire)
-[![Go Reference](https://pkg.go.dev/badge/github.com/endobit/wifire.svg)](https://pkg.go.dev/github.com/endobit/wifire)
+[![Go Report Card](https://goreportcard.com/badge/github.com/endobit/wifire)](https://goreportcard.com/report/endobit.io/wifire)
+[![Go Reference](https://pkg.go.dev/badge/github.com/endobit/wifire.svg)](https://pkg.go.dev/endobit.io/wifire)
 
 # WiFire
 
@@ -33,16 +33,8 @@ Run `wifire` with no arguments to see the help and usage.
 
 ### plot
 
-
 After a session of logging with the `--output` flag run `wifire plot` and use
 the `--input` flag to specify a JSON log file. The result is a file called
 `wifire.png` the will look the following:
 
 ![sample plot](sample.png)
-
-
-
-
-
-
-
