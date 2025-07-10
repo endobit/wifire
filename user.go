@@ -57,7 +57,7 @@ type image struct {
 }
 
 // UserData fetches the /prod/users/self information from the WiFire API.
-func (w *WiFire) UserData() (*getUserDataResponse, error) { //nolint:revive
+func (w *WiFire) UserData() (*getUserDataResponse, error) {
 	// response is read only user doesn't need to create a new struct
 	client := http.Client{}
 

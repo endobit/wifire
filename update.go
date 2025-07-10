@@ -126,6 +126,7 @@ func (d *JSONDuration) UnmarshalJSON(data []byte) error {
 	}
 
 	*d = JSONDuration(duration)
+
 	return nil
 }
 

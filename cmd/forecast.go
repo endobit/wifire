@@ -9,10 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/endobit/wifire"
+	"endobit.io/table"
+	"endobit.io/wifire"
 )
 
-func newForecastCmd() *cobra.Command {
+func newForecastCmd() *cobra.Command { //nolint:gocognit
 	var (
 		input      string
 		actualTime string
@@ -33,6 +34,7 @@ validate the accuracy of the predictions against the actual completion time.`,
 
 			// Parse actual finish time if provided
 			var actualFinish *time.Time
+
 			if actualTime != "" {
 				parsed, err := time.Parse(time.RFC3339, actualTime)
 				if err != nil {
@@ -43,9 +45,11 @@ validate the accuracy of the predictions against the actual completion time.`,
 
 			// Read all entries first
 			var entries []wifire.Status
+
 			scanner := bufio.NewScanner(fin)
 			for scanner.Scan() {
 				var status wifire.Status
+
 				if err := json.Unmarshal(scanner.Bytes(), &status); err != nil {
 					continue // Skip invalid entries
 				}
@@ -60,6 +64,7 @@ validate the accuracy of the predictions against the actual completion time.`,
 
 			if len(entries) == 0 {
 				fmt.Println("No valid probe data found in input file")
+
 				return nil
 			}
 
@@ -70,24 +75,39 @@ validate the accuracy of the predictions against the actual completion time.`,
 			fmt.Println()
 
 			// Initialize exponential predictor
-			ep := wifire.NewExponentialPredictor()
+			ep := wifire.NewExponentialPredictor() //nolint:varnamelen
 
-			// Print header
-			fmt.Printf("%-10s %-8s %-8s %-8s %-8s %-10s %-10s %-12s %-12s %-10s\n",
-				"Time", "Delta", "Grill", "Probe", "Target", "Velocity", "Filtered", "Exp ETA", "Actual", "Accuracy")
-			fmt.Printf("%-10s %-8s %-8s %-8s %-8s %-10s %-10s %-12s %-12s %-10s\n",
-				"", "(s)", "", "", "", "(°F/h)", "", "", "", "")
-			fmt.Println("---------- -------- -------- -------- -------- ---------- ---------- ------------ ------------ ----------")
+			type row struct {
+				Time   string
+				Delta  string `table:"\n(s)"`
+				Grill  int
+				Probe  int
+				Target int
+				// F or C depending on grill settings
+				// TODO: are units in the status data?
+				Velocity string `table:"\n(°/h)"`
+				Filtered string
+				ExpETA   string
+				Actual   string `table:",omitempty"`
+				Accuracy string `table:",omitempty"`
+			}
+
+			output := table.New()
 
 			// Process each entry as if it were real-time
-			for i, entry := range entries {
+			for i := range entries {
+				entry := &entries[i]
+
 				// Calculate time delta from previous entry
-				var deltaTime string
-				var velocity float64
+				var (
+					deltaTime string
+					velocity  float64
+				)
+
 				if i > 0 {
 					deltaSeconds := entry.Time.Sub(entries[i-1].Time).Seconds()
 					deltaTime = fmt.Sprintf("%.0f", deltaSeconds)
-					
+
 					// Calculate temperature velocity in °F/hour
 					if deltaSeconds > 0 {
 						deltaTemp := float64(entry.Probe - entries[i-1].Probe)
@@ -97,13 +117,14 @@ validate the accuracy of the predictions against the actual completion time.`,
 					deltaTime = "0"
 					velocity = 0
 				}
-				
+
 				// Update exponential predictor
 				if entry.ProbeSet > 0 {
-					ep.Update(float64(entry.Probe), entry.Time, float64(entry.ProbeSet), float64(entry.Grill), float64(entry.GrillSet))
+					ep.Update(float64(entry.Probe), entry.Time,
+						float64(entry.ProbeSet), float64(entry.Grill), float64(entry.GrillSet))
 				}
 
-				if ep.IsInitialized() {
+				if ep.IsInitialized() { //nolint:nestif
 					// Get exponential predictor state
 					filteredTemp, _ := ep.GetCurrentState()
 					uncertainty := ep.GetUncertainty()
@@ -112,8 +133,8 @@ validate the accuracy of the predictions against the actual completion time.`,
 					exponentialETA := ep.EstimateTimeToTarget(float64(entry.ProbeSet))
 
 					// Calculate accuracy and actual remaining if we have actual finish time
-					var accuracy string
-					var actualRemainingStr string
+					var accuracy, actualRemainingStr string
+
 					if actualFinish != nil {
 						actualRemaining := actualFinish.Sub(entry.Time)
 						if actualRemaining > 0 {
@@ -121,30 +142,25 @@ validate the accuracy of the predictions against the actual completion time.`,
 							if exponentialETA > 0 {
 								errorPercent := (exponentialETA.Seconds() - actualRemaining.Seconds()) / actualRemaining.Seconds() * 100
 								accuracy = fmt.Sprintf("%+.1f%%", errorPercent)
-							} else {
-								accuracy = "N/A"
 							}
 						} else {
 							actualRemainingStr = "DONE"
 							accuracy = "DONE"
 						}
-					} else {
-						actualRemainingStr = "N/A"
-						accuracy = "N/A"
 					}
 
-					// Print row
-					fmt.Printf("%-10s %-8s %-8d %-8d %-8d %-10.1f %-10.2f %-12s %-12s %-10s\n",
-						entry.Time.Format("15:04:05"),
-						deltaTime,
-						entry.Grill,
-						entry.Probe,
-						entry.ProbeSet,
-						velocity,
-						filteredTemp,
-						formatDuration(exponentialETA),
-						actualRemainingStr,
-						accuracy)
+					output.Write(row{
+						Time:     entry.Time.Format(time.TimeOnly),
+						Delta:    deltaTime,
+						Grill:    entry.Grill,
+						Probe:    entry.Probe,
+						Target:   entry.ProbeSet,
+						Velocity: fmt.Sprintf("%.1f", velocity),
+						Filtered: fmt.Sprintf("%.2f", filteredTemp),
+						ExpETA:   formatDuration(exponentialETA),
+						Actual:   actualRemainingStr,
+						Accuracy: accuracy,
+					})
 
 					// Show prediction details every 10 entries or when accuracy changes significantly
 					if i > 0 && (i%10 == 0 || i == len(entries)-1) {
@@ -152,28 +168,27 @@ validate the accuracy of the predictions against the actual completion time.`,
 							actualRemaining := actualFinish.Sub(entry.Time)
 							predictedFinish := entry.Time.Add(exponentialETA)
 							expTau := ep.GetTimeConstant()
-							fmt.Printf("    -> Predicted finish: %s, Actual remaining: %s, Uncertainty: ±%.1f°F, Tau: %.0fs\n",
-								predictedFinish.Format("15:04:05"),
+							output.Annotate(fmt.Sprintf(
+								"    -> Predicted finish: %s, Actual remaining: %s, Uncertainty: ±%.1f°F, Tau: %.0fs\n",
+								predictedFinish.Format(time.TimeOnly),
 								formatDuration(actualRemaining),
 								uncertainty,
-								expTau)
+								expTau))
 						}
 					}
 				} else {
 					// First entry - just show initialization
-					fmt.Printf("%-10s %-8s %-8d %-8d %-8d %-10s %-10s %-12s %-12s %-10s\n",
-						entry.Time.Format("15:04:05"),
-						deltaTime,
-						entry.Grill,
-						entry.Probe,
-						entry.ProbeSet,
-						"INIT",
-						"INIT",
-						"INIT",
-						"N/A",
-						"INIT")
+					output.Write(row{
+						Time:   entry.Time.Format(time.TimeOnly),
+						Delta:  deltaTime,
+						Grill:  entry.Grill,
+						Probe:  entry.Probe,
+						Target: entry.ProbeSet,
+					})
 				}
 			}
+
+			_ = output.Flush()
 
 			// Summary
 			fmt.Println()
@@ -205,7 +220,8 @@ validate the accuracy of the predictions against the actual completion time.`,
 	}
 
 	cmd.Flags().StringVarP(&input, "input", "i", "", "input JSON log file")
-	cmd.Flags().StringVar(&actualTime, "actual", "", "actual finish time (RFC3339 format, e.g., 2025-07-05T20:49:45-04:00)")
+	cmd.Flags().StringVar(&actualTime, "actual", "",
+		"actual finish time (RFC3339 format, e.g., 2025-07-05T20:49:45-04:00)")
 
 	if err := cmd.MarkFlagRequired("input"); err != nil {
 		panic(err)
@@ -226,5 +242,6 @@ func formatDuration(d time.Duration) string {
 	if hours > 0 {
 		return fmt.Sprintf("%dh%dm", hours, minutes)
 	}
+
 	return fmt.Sprintf("%dm", minutes)
 }

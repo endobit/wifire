@@ -6,7 +6,7 @@ import (
 
 	"log/slog"
 
-	"github.com/endobit/clog"
+	"endobit.io/clog"
 )
 
 var version string

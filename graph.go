@@ -122,8 +122,11 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 	copy(grillSet, ambient)
 	copy(probeSet, ambient)
 
-	var maxTemp int
-	var maxETA float64
+	var (
+		maxTemp int
+		maxETA  float64
+	)
+
 	normalizedTimes := normalizeStatus(p.options.Data)
 
 	for i := range p.options.Data {
@@ -139,6 +142,7 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 		// Add probeETA data points only where ETA exists
 		if p.options.Data[i].ProbeETA > 0 {
 			var xValue float64
+
 			switch p.options.Period {
 			case ByMinute:
 				xValue = normalizedTimes[i].Minutes()

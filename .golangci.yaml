@@ -44,7 +44,6 @@ linters:
     - nosprintfhostport
     - perfsprint
     - prealloc
-    - predeclared
     - reassign
     - revive
     - rowserrcheck
@@ -59,8 +58,12 @@ linters:
     - varnamelen
     - wastedassign
     - whitespace
-    - wsl
+    - wsl_v5
   settings:
+    revive:
+      rules:
+        - name: redefines-builtin-id
+          disabled: true # redundant, handled by gocritic
     gocritic:
       disabled-checks:
         - commentedOutCode
@@ -80,3 +83,5 @@ linters:
       key-naming-case: snake
     varnamelen:
       max-distance: 20
+      ignore-decls:
+        - i int

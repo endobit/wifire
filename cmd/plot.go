@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/endobit/wifire"
+	"endobit.io/wifire"
 )
 
 func newPlotCmd() *cobra.Command {

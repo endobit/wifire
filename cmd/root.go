@@ -15,8 +15,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/endobit/clog"
-	"github.com/endobit/wifire"
+	"endobit.io/clog"
+	"endobit.io/wifire"
 )
 
 func logger(level wifire.LogLevel, component, msg string) {
@@ -89,19 +89,14 @@ func newRootCmd() *cobra.Command {
 			defer grill.Disconnect()
 
 			// Load historical data from file on startup for better ETA stability
-			var history []wifire.Status
+			history := []wifire.Status{}
 			if output != "" {
 				loadedHistory, err := loadHistoricalData(output, 20)
 				if err != nil {
 					slog.Warn("failed to load historical data", "error", err)
-					history = []wifire.Status{}
 				} else if loadedHistory != nil {
 					history = loadedHistory
-				} else {
-					history = []wifire.Status{}
 				}
-			} else {
-				history = []wifire.Status{}
 			}
 
 			// Log startup information if we have historical data
@@ -157,23 +152,27 @@ func newRootCmd() *cobra.Command {
 	return &cmd
 }
 
-func status(g *wifire.Grill, out io.Writer, history []wifire.Status) {
+func status(grill *wifire.Grill, out io.Writer, history []wifire.Status) { //nolint:gocognit
 	// Initialize exponential predictor for probe temperature prediction
 	exponentialPredictor := wifire.NewExponentialPredictor()
 
 	// Initialize predictor with historical data if available
 	if len(history) > 0 {
 		slog.Info("initializing predictor with historical data", "entries", len(history))
-		for _, status := range history {
+
+		for i := range history {
+			status := &history[i]
+
 			if status.Probe > 0 && status.ProbeSet > 0 { // Only use valid probe readings
-				exponentialPredictor.Update(float64(status.Probe), status.Time, float64(status.ProbeSet), float64(status.Grill), float64(status.GrillSet))
+				exponentialPredictor.Update(float64(status.Probe), status.Time,
+					float64(status.ProbeSet), float64(status.Grill), float64(status.GrillSet))
 			}
 		}
 
 		// Log initial predictor state
 		temp, velocity := exponentialPredictor.GetCurrentState()
 		uncertainty := exponentialPredictor.GetUncertainty()
-		slog.Info("Exponential predictor initialized",
+		slog.Info("exponential predictor initialized",
 			"temperature", temp,
 			"velocity_deg_per_hour", velocity*3600,
 			"uncertainty", uncertainty)
@@ -181,7 +180,7 @@ func status(g *wifire.Grill, out io.Writer, history []wifire.Status) {
 
 	ch := make(chan wifire.Status, 1)
 
-	if err := g.SubscribeStatus(ch); err != nil {
+	if err := grill.SubscribeStatus(ch); err != nil {
 		slog.Error("cannot subscribe to status", "error", err)
 
 		return
@@ -195,7 +194,8 @@ func status(g *wifire.Grill, out io.Writer, history []wifire.Status) {
 
 		// Update predictor with new probe measurement
 		if msg.Probe > 0 && msg.ProbeSet > 0 {
-			exponentialPredictor.Update(float64(msg.Probe), msg.Time, float64(msg.ProbeSet), float64(msg.Grill), float64(msg.GrillSet))
+			exponentialPredictor.Update(float64(msg.Probe), msg.Time,
+				float64(msg.ProbeSet), float64(msg.Grill), float64(msg.GrillSet))
 		}
 
 		history = append(history, msg)
@@ -205,39 +205,41 @@ func status(g *wifire.Grill, out io.Writer, history []wifire.Status) {
 
 		var attrs []slog.Attr
 
-		attrs = append(attrs, slog.Int("ambient", msg.Ambient))
-		attrs = append(attrs, slog.Int("grill", msg.Grill))
-		attrs = append(attrs, slog.Int("grill_set", msg.GrillSet))
-		attrs = append(attrs, slog.Int("probe", msg.Probe))
-		attrs = append(attrs, slog.Int("probe_set", msg.ProbeSet))
-
-		attrs = append(attrs, slog.Bool("probe_alarm", msg.ProbeAlarmFired))
+		attrs = append(attrs,
+			slog.Int("ambient", msg.Ambient),
+			slog.Int("grill", msg.Grill),
+			slog.Int("grill_set", msg.GrillSet),
+			slog.Int("probe", msg.Probe),
+			slog.Int("probe_set", msg.ProbeSet),
+			slog.Bool("probe_alarm", msg.ProbeAlarmFired))
 
 		// Calculate ETA using exponential prediction model
-		if msg.ProbeSet > 0 && msg.Probe < msg.ProbeSet {
-			var bestETA time.Duration
-			var etaSource string
-			
-			// Get exponential predictor prediction  
-			var exponentialETA time.Duration
+		if msg.ProbeSet > 0 && msg.Probe < msg.ProbeSet { //nolint:nestif
+			var (
+				bestETA, exponentialETA time.Duration
+				etaSource               string
+			)
+
+			// Get exponential predictor prediction
 			if exponentialPredictor.IsInitialized() {
 				exponentialETA = exponentialPredictor.EstimateTimeToTarget(float64(msg.ProbeSet))
 			}
-			
+
 			// Use exponential predictor as primary, fallback to legacy calculation
 			if exponentialETA > 0 && exponentialETA < 24*time.Hour {
 				bestETA = exponentialETA
 				etaSource = "exponential"
 			} else {
 				// Fallback to original calculation method
-				bestETA = calculateProbeETA(history, msg)
+				bestETA = calculateProbeETA(history, &msg)
 				etaSource = "legacy"
 			}
-			
+
 			if bestETA > 0 {
 				msg.ProbeETA = wifire.JSONDuration(bestETA)
-				attrs = append(attrs, slog.Duration("probe_eta", bestETA.Round(time.Minute)))
-				attrs = append(attrs, slog.String("eta_source", etaSource))
+				attrs = append(attrs,
+					slog.Duration("probe_eta", bestETA.Round(time.Minute)),
+					slog.String("eta_source", etaSource))
 
 				// Add detailed predictor state to debug logging
 				if wifire.Logger != nil {
@@ -245,7 +247,7 @@ func status(g *wifire.Grill, out io.Writer, history []wifire.Status) {
 					eTemp, eVelocity := exponentialPredictor.GetCurrentState()
 					eUncertainty := exponentialPredictor.GetUncertainty()
 					eTau := exponentialPredictor.GetTimeConstant()
-					
+
 					wifire.Logger(wifire.LogDebug, "eta_models", fmt.Sprintf(
 						"source=%s, exp_eta=%.1fm (temp=%.2f, vel=%.2f°F/hr, unc=%.2f, tau=%.0fs), final_eta=%.1fm",
 						etaSource, exponentialETA.Minutes(), eTemp, eVelocity*3600, eUncertainty, eTau,
@@ -280,11 +282,13 @@ func loadHistoricalData(filename string, maxEntries int) ([]wifire.Status, error
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
+
 		return nil, err
 	}
 	defer file.Close()
 
 	var history []wifire.Status
+
 	scanner := bufio.NewScanner(file)
 
 	// Read all lines first to get the most recent entries
@@ -308,6 +312,7 @@ func loadHistoricalData(filename string, maxEntries int) ([]wifire.Status, error
 		if err := json.Unmarshal([]byte(lines[i]), &status); err != nil {
 			// Skip invalid lines but continue processing
 			slog.Warn("skipping invalid JSON line in history file", "line", i+1, "error", err)
+
 			continue
 		}
 
@@ -327,7 +332,7 @@ func loadHistoricalData(filename string, maxEntries int) ([]wifire.Status, error
 }
 
 // calculateProbeETA estimates time to reach target probe temperature using multiple factors
-func calculateProbeETA(history []wifire.Status, current wifire.Status) time.Duration {
+func calculateProbeETA(history []wifire.Status, current *wifire.Status) time.Duration {
 	if len(history) < 1 {
 		return 0
 	}
@@ -345,19 +350,22 @@ func calculateProbeETA(history []wifire.Status, current wifire.Status) time.Dura
 	tempChange := float64(last.Probe - first.Probe)
 	timeChange := last.Time.Sub(first.Time).Seconds()
 
-	var baseRate float64
-	var tempTrend string
+	var (
+		baseRate  float64
+		tempTrend string
+	)
 
-	if tempChange > 0 {
+	switch {
+	case tempChange > 0:
 		// Temperature is rising - normal calculation
 		baseRate = tempChange / timeChange
 		tempTrend = "rising"
-	} else if tempChange < 0 {
+	case tempChange < 0:
 		// Temperature is falling - return a very long ETA to indicate issue
 		tempTrend = "falling"
 		// Use a very slow hypothetical rate (1 degree per hour) for falling temp
 		baseRate = 1.0 / 3600.0 // 1°F per hour in degrees per second
-	} else {
+	default:
 		// Temperature is stable/plateau - use a very slow rate
 		tempTrend = "stable"
 		// Use a minimal rate to indicate very long ETA for stable temps
@@ -366,18 +374,21 @@ func calculateProbeETA(history []wifire.Status, current wifire.Status) time.Dura
 
 	// Calculate recent rate using last few history entries plus current
 	var recentRate float64
+
 	if len(history) >= 2 {
 		// Use last 2 history entries plus current for recent trend
 		recentStart := history[len(history)-2]
 		recentTempChange := float64(current.Probe - recentStart.Probe)
 		recentTimeChange := current.Time.Sub(recentStart.Time).Seconds()
+
 		if recentTimeChange > 0 {
-			if recentTempChange > 0 {
+			switch {
+			case recentTempChange > 0:
 				recentRate = recentTempChange / recentTimeChange
-			} else if recentTempChange < 0 {
+			case recentTempChange < 0:
 				// Recent falling trend - use slow rate
 				recentRate = 1.0 / 3600.0
-			} else {
+			default:
 				// Recent stable trend - use minimal rate
 				recentRate = 0.5 / 3600.0
 			}
@@ -414,13 +425,14 @@ func calculateProbeETA(history []wifire.Status, current wifire.Status) time.Dura
 	tempDifferential := float64(current.Grill - current.Probe)
 	differentialAdjustment := 1.0
 
-	if tempDifferential > 50 {
+	switch {
+	case tempDifferential > 50:
 		// Large differential = faster heating
 		differentialAdjustment = 1.1
-	} else if tempDifferential < 20 {
+	case tempDifferential < 20:
 		// Small differential = slower heating (approaching equilibrium)
 		differentialAdjustment = 0.8
-	} else if tempDifferential < 10 {
+	case tempDifferential < 10:
 		// Very small differential = much slower heating
 		differentialAdjustment = 0.6
 	}
@@ -441,6 +453,7 @@ func calculateProbeETA(history []wifire.Status, current wifire.Status) time.Dura
 	// Factor 4: Rate stability check
 	// If recent rate is much different from historical, be more conservative
 	stabilityAdjustment := 1.0
+
 	if recentRate > 0 && baseRate > 0 {
 		rateRatio := recentRate / baseRate
 		if rateRatio > 1.5 || rateRatio < 0.5 {
@@ -454,9 +467,11 @@ func calculateProbeETA(history []wifire.Status, current wifire.Status) time.Dura
 
 	// Debug logging for adjustment factors (only if wifire debug logging is enabled)
 	if wifire.Logger != nil {
-		wifire.Logger(wifire.LogDebug, "eta", fmt.Sprintf(
-			"ETA calc: base_rate=%.4f, recent_rate=%.4f, grill_adj=%.2f, diff_adj=%.2f, stage_adj=%.2f, stability_adj=%.2f, final_rate=%.4f",
-			baseRate, recentRate, grillTempAdjustment, differentialAdjustment, stageAdjustment, stabilityAdjustment, adjustedRate))
+		wifire.Logger(wifire.LogDebug, "eta",
+			fmt.Sprintf("ETA calc: base_rate=%.4f, recent_rate=%.4f, grill_adj=%.2f, diff_adj=%.2f, "+
+				"stage_adj=%.2f, stability_adj=%.2f, final_rate=%.4f",
+				baseRate, recentRate, grillTempAdjustment, differentialAdjustment,
+				stageAdjustment, stabilityAdjustment, adjustedRate))
 	}
 
 	// Calculate ETA
@@ -476,6 +491,7 @@ func calculateProbeETA(history []wifire.Status, current wifire.Status) time.Dura
 				"ETA >24h (%.1fh calculated) - temp trend: %s, capping at 24h",
 				etaSeconds/3600, tempTrend))
 		}
+
 		return 24 * time.Hour
 	}
 
