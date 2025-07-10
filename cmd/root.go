@@ -4,50 +4,36 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"endobit.io/clog"
 	"endobit.io/wifire"
 )
 
-func logger(level wifire.LogLevel, component, msg string) {
-	var slogLevel slog.Level
-
-	switch level {
-	case wifire.LogDebug:
-		slogLevel = slog.LevelDebug
-	case wifire.LogInfo:
-		slogLevel = slog.LevelInfo
-	case wifire.LogWarn:
-		slogLevel = slog.LevelWarn
-	case wifire.LogError:
-		slogLevel = slog.LevelError
-	default:
-		return
-	}
-
-	if component != "" {
-		slog.LogAttrs(context.TODO(), slogLevel, msg, slog.String("component", component))
-	} else {
-		slog.LogAttrs(context.TODO(), slogLevel, msg)
-	}
+type Config struct {
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
 }
 
 func newRootCmd() *cobra.Command {
 	var (
-		output             string
-		username, password string
-		logLevel           string
-		debug              bool
+		output   string
+		logLevel string
+		debug    bool
+		v        *viper.Viper
 	)
 
 	cmd := cobra.Command{
@@ -67,11 +53,25 @@ func newRootCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(_ *cobra.Command, _ []string) error {
+			var cfg Config
+
+			if err := v.ReadInConfig(); err != nil {
+				slog.Warn("failed to read config file", "error", err)
+			}
+
+			if err := v.Unmarshal(&cfg); err != nil {
+				return err
+			}
+
+			if cfg.Username == "" || cfg.Password == "" {
+				return errors.New("username and password must be set, either via flags or config file")
+			}
+
 			if debug {
 				wifire.Logger = logger
 			}
 
-			w, err := wifire.New(wifire.Credentials(username, password))
+			w, err := wifire.New(wifire.Credentials(cfg.Username, cfg.Password))
 			if err != nil {
 				return err
 			}
@@ -130,18 +130,22 @@ func newRootCmd() *cobra.Command {
 		},
 	}
 
+	v = viper.NewWithOptions(viper.WithLogger(slog.Default()))
+	v.AddConfigPath(configFilePath(cmd.Use))
+	v.SetConfigName("config")
+
 	info := strings.ToLower(slog.LevelInfo.String())
 	cmd.PersistentFlags().StringVar(&logLevel, "log", info, "log level")
 	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "debug wifire API")
-	cmd.Flags().StringVar(&username, "username", "", "account username")
-	cmd.Flags().StringVar(&password, "password", "", "account password")
 	cmd.Flags().StringVar(&output, "output", "", "log to file")
 
-	if err := cmd.MarkFlagRequired("username"); err != nil {
+	cmd.Flags().String("username", "", "account username")
+	cmd.Flags().String("password", "", "account password")
+
+	if err := v.BindPFlag("username", cmd.Flags().Lookup("username")); err != nil {
 		panic(err)
 	}
-
-	if err := cmd.MarkFlagRequired("password"); err != nil {
+	if err := v.BindPFlag("password", cmd.Flags().Lookup("password")); err != nil {
 		panic(err)
 	}
 
@@ -150,6 +154,28 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newForecastCmd())
 
 	return &cmd
+}
+
+func configFilePath(appName string) string {
+	var baseDir string
+
+	switch runtime.GOOS {
+	case "windows":
+		baseDir = os.Getenv("AppData")
+	default:
+		xdg := os.Getenv("XDG_CONFIG_HOME")
+		if xdg != "" {
+			baseDir = xdg
+		} else {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return ""
+			}
+			baseDir = filepath.Join(home, ".config")
+		}
+	}
+
+	return filepath.Join(baseDir, appName)
 }
 
 func status(grill *wifire.Grill, out io.Writer, history []wifire.Status) { //nolint:gocognit
@@ -203,15 +229,14 @@ func status(grill *wifire.Grill, out io.Writer, history []wifire.Status) { //nol
 			history = history[1:]
 		}
 
-		var attrs []slog.Attr
-
-		attrs = append(attrs,
+		attrs := []slog.Attr{
 			slog.Int("ambient", msg.Ambient),
 			slog.Int("grill", msg.Grill),
 			slog.Int("grill_set", msg.GrillSet),
 			slog.Int("probe", msg.Probe),
 			slog.Int("probe_set", msg.ProbeSet),
-			slog.Bool("probe_alarm", msg.ProbeAlarmFired))
+			slog.Bool("probe_alarm", msg.ProbeAlarmFired),
+		}
 
 		// Calculate ETA using exponential prediction model
 		if msg.ProbeSet > 0 && msg.Probe < msg.ProbeSet { //nolint:nestif
