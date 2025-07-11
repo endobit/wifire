@@ -2,10 +2,7 @@ package wifire
 
 import (
 	"encoding/json"
-	"log/slog"
 	"time"
-
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
 //go:generate go tool enumer -type Units -linecomment
@@ -28,6 +25,68 @@ const (
 	StatusReady                     // ready
 	StatusOffline SystemStatus = 99 // offline
 )
+
+// GetUserDataResponse is the wifire UserData.
+type GetUserDataResponse struct {
+	Cognito        string  `json:"cognito"`
+	CustomerID     string  `json:"customerId"`
+	Email          string  `json:"email"`
+	FamiltyName    string  `json:"familyName"`
+	FullName       string  `json:"fullName"`
+	GivenName      string  `json:"givenName"`
+	Teams          []team  `json:"teams"`
+	Things         []thing `json:"things"`
+	UrbanAirshipID string  `json:"urbanAirshipId"`
+	UserID         string  `json:"userId"`
+	Username       string  `json:"username"`
+}
+
+type team struct {
+	IsAdmin   bool   `json:"isAdmin"`
+	JoinDate  string `json:"joinDate"`
+	TeamID    string `json:"teamId"`
+	TeamName  string `json:"teamName"`
+	TeamRowID string `json:"teamRowId"`
+	ThingName string `json:"thingName"`
+	UserID    string `json:"userId"`
+}
+
+type thing struct {
+	DeviceTypeID string     `json:"deviceTypeId"`
+	FriendlyName string     `json:"friendlyName"`
+	GrillModel   grillModel `json:"grillModel"`
+	ProductID    string     `json:"productId"`
+	Status       string     `json:"status"`
+	ThingName    string     `json:"thingName"`
+	UserID       string     `json:"userId"`
+}
+
+type grillModel struct {
+	Controller         string `json:"controller"`
+	Description        string `json:"description"`
+	DeviceTypeID       string `json:"deviceTypeId"`
+	Group              string `json:"group"`
+	Image              image  `json:"image"`
+	IOTCapable         bool   `json:"iotCapable"`
+	IsTraeger          bool   `json:"isTraegerBrand"`
+	Make               string `json:"make"`
+	ModuelNumber       string `json:"modelNumber"`
+	Name               string `json:"name"`
+	OwnersManualURL    string `json:"ownersManualUrl"`
+	ReferenceProductID string `json:"referenceProductId"`
+}
+
+type image struct {
+	DefaultHost string `json:"defaultHost"`
+	Endpoint    string `json:"endpoint"`
+	Name        string `json:"name"`
+}
+
+type getMQTTResponse struct {
+	ExpirationSeconds int    `json:"expirationSeconds"`
+	ExpiresAt         int    `json:"expiresAt"`
+	SignedURL         string `json:"signedUrl"`
+}
 
 // Status is the real-time grill status. It is a cleaned up version of the
 // status returned from the MQTT subscription. If there was an error receiving
@@ -85,68 +144,6 @@ type status struct {
 	SystemStatus      int    `json:"system_status"`      // 3=ready, 99=offline
 	Time              int64  `json:"time"`               // unix timestamp
 	Units             int    `json:"units"`              // 0 for celsius, 1 for fahrenheit
-}
-
-// SubscribeStatus subscribes to the prod/thing/update for the grill. SubscribeStatus
-// updates are pushed to the returned channel.
-func (g *Grill) SubscribeStatus(subscriber chan Status) error {
-	if !g.client.IsConnected() {
-		if err := g.connect(); err != nil {
-			return err
-		}
-	}
-
-	token := g.client.Subscribe("prod/thing/update/"+g.name, 1, func(_ mqtt.Client, m mqtt.Message) {
-		var msg map[string]any
-
-		payload := m.Payload()
-
-		if err := json.Unmarshal(payload, &msg); err != nil {
-			slog.Error("bad message", "msg", string(payload))
-		}
-
-		m.Ack() // doesn't do anything
-
-		slog.Debug("rx",
-			slog.Bool("duplicate", m.Duplicate()),
-			slog.Any("qos", m.Qos()),
-			slog.Bool("retained", m.Retained()),
-			slog.String("topic", m.Topic()),
-			slog.Any("message_id", m.MessageID()),
-			slog.Any("payload", msg))
-
-		subscriber <- newUpdate(payload)
-	})
-
-	token.Wait()
-
-	return nil
-}
-
-func newUpdate(data []byte) Status {
-	var msg prodThingUpdate
-
-	if err := json.Unmarshal(data, &msg); err != nil {
-		return Status{Error: err}
-	}
-
-	return Status{
-		Ambient:         msg.Status.Ambient,
-		Connected:       msg.Status.Connected,
-		Grill:           msg.Status.Grill,
-		GrillSet:        msg.Status.Set,
-		KeepWarm:        msg.Status.KeepWarm,
-		PelletLevel:     msg.Status.PelletLevel,
-		Probe:           msg.Status.Probe,
-		ProbeAlarmFired: msg.Status.ProbeAlarmFired != 0,
-		ProbeConnected:  msg.Status.ProbeConnected != 0,
-		ProbeSet:        msg.Status.ProbeSet,
-		RealTime:        msg.Status.RealTime,
-		Smoke:           msg.Status.Smoke,
-		Time:            time.Unix(msg.Status.Time, 0),
-		Units:           Units(msg.Status.Units),
-		SystemStatus:    SystemStatus(msg.Status.SystemStatus),
-	}
 }
 
 // JSONDuration is a custom type that marshals time.Duration to JSON as a string
