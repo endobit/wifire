@@ -2,6 +2,7 @@ package wifire
 
 import (
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -72,7 +73,25 @@ func (g *Grill) SubscribeStatus(ch chan Status) error {
 	}
 
 	token := g.client.Subscribe("prod/thing/update/"+g.name, 1, func(_ mqtt.Client, m mqtt.Message) {
-		ch <- newUpdate(m.Payload())
+		var msg map[string]any
+
+		payload := m.Payload()
+
+		if err := json.Unmarshal(payload, &msg); err != nil {
+			slog.Error("bad message", "msg", string(payload))
+		}
+
+		m.Ack() // doesn't do anything
+
+		slog.Debug("rx",
+			slog.Bool("duplicate", m.Duplicate()),
+			slog.Any("qos", m.Qos()),
+			slog.Bool("retained", m.Retained()),
+			slog.String("topic", m.Topic()),
+			slog.Any("message_id", m.MessageID()),
+			slog.Any("payload", msg))
+
+		ch <- newUpdate(payload)
 	})
 
 	token.Wait()

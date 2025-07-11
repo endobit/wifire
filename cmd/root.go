@@ -212,8 +212,12 @@ func status(grill *wifire.Grill, out io.Writer, history []wifire.Status) { //nol
 		return
 	}
 
-	for {
-		msg := <-ch
+	for msg := range ch {
+		if !msg.Connected {
+			slog.Warn("grill disconnected")
+			continue
+		}
+
 		if msg.Error != nil {
 			slog.Error("invalid status", "error", msg.Error)
 		}
