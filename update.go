@@ -58,38 +58,38 @@ type prodThingUpdate struct {
 
 // status is the raw message returned from the MQTT subscription.
 type status struct {
-	Ambient           int    `json:"ambient"` // temperature
-	Connected         bool   `json:"connected"`
+	Ambient           int    `json:"ambient"`   // temperature
+	Connected         bool   `json:"connected"` // bool
 	CookID            string `json:"cook_id"`
-	CooKTimerComplete int    `json:"cook_timer_complete"`
-	CookTimerEnd      int    `json:"cook_timer_end"`
-	CookTimerStrart   int    `json:"cook_timer_start"`
+	CooKTimerComplete int    `json:"cook_timer_complete"` // bool?
+	CookTimerEnd      int    `json:"cook_timer_end"`      // unix timestamp?
+	CookTimerStrart   int    `json:"cook_timer_start"`    // unix timestamp?
 	CurrentCycle      int    `json:"current_cycle"`
 	CurrentStep       int    `json:"current_step"`
-	Errors            int    `json:"errors"`
-	Grill             int    `json:"grill"`
-	InCustom          int    `json:"in_custom"`
-	KeepWarm          int    `json:"keepwarm"`
-	PelletLevel       int    `json:"pellet_level"`
-	Probe             int    `json:"probe"` // temperature
-	ProbeAlarmFired   int    `json:"probe_alarm_fired"`
-	ProbeConnected    int    `json:"probe_con"`
-	ProbeSet          int    `json:"probe_set"` // temperature
+	Errors            int    `json:"errors"`            // bool?
+	Grill             int    `json:"grill"`             // temperature
+	InCustom          int    `json:"in_custom"`         // bool?
+	KeepWarm          int    `json:"keepwarm"`          // bool?
+	PelletLevel       int    `json:"pellet_level"`      // unknown - my grill doesn't have pellet monitor
+	Probe             int    `json:"probe"`             // temperature
+	ProbeAlarmFired   int    `json:"probe_alarm_fired"` // bool
+	ProbeConnected    int    `json:"probe_con"`         // bool
+	ProbeSet          int    `json:"probe_set"`         // temperature
 	RealTime          int    `json:"real_time"`
-	ServerStatus      int    `json:"server_status"`
-	Set               int    `json:"set"` // temperature
-	Smoke             int    `json:"smoke"`
-	SysTimerComplete  int    `json:"sys_timer_complete"`
-	SysTimerEnd       int    `json:"sys_timer_end"`
-	SysTimerStart     int    `json:"sys_timer_start"`
-	SystemStatus      int    `json:"system_status"`
-	Time              int64  `json:"time"`
-	Units             int    `json:"units"`
+	ServerStatus      int    `json:"server_status"`      // 1=online
+	Set               int    `json:"set"`                // temperature
+	Smoke             int    `json:"smoke"`              // bool? - my grill doesn't have super smoke
+	SysTimerComplete  int    `json:"sys_timer_complete"` // bool?
+	SysTimerEnd       int    `json:"sys_timer_end"`      // unix timestamp?
+	SysTimerStart     int    `json:"sys_timer_start"`    // unix timestamp?
+	SystemStatus      int    `json:"system_status"`      // 3=ready, 99=offline
+	Time              int64  `json:"time"`               // unix timestamp
+	Units             int    `json:"units"`              // 0 for celsius, 1 for fahrenheit
 }
 
 // SubscribeStatus subscribes to the prod/thing/update for the grill. SubscribeStatus
 // updates are pushed to the returned channel.
-func (g *Grill) SubscribeStatus(ch chan Status) error {
+func (g *Grill) SubscribeStatus(subscriber chan Status) error {
 	if !g.client.IsConnected() {
 		if err := g.connect(); err != nil {
 			return err
@@ -115,7 +115,7 @@ func (g *Grill) SubscribeStatus(ch chan Status) error {
 			slog.Any("message_id", m.MessageID()),
 			slog.Any("payload", msg))
 
-		ch <- newUpdate(payload)
+		subscriber <- newUpdate(payload)
 	})
 
 	token.Wait()
