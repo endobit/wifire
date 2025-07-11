@@ -9,6 +9,7 @@ import (
 )
 
 //go:generate go tool enumer -type Units -linecomment
+
 type Units int
 
 const (
@@ -16,8 +17,21 @@ const (
 	UnitsFahrenheit              // fahrenheit
 )
 
-// Status is the grill status returned from the MQTT subscription. If there was
-// an error receiving the message the Error field is set.
+//go:generate go tool enumer -type SystemStatus -linecomment
+
+type SystemStatus int
+
+const (
+	_ SystemStatus = iota
+	_
+	_
+	StatusReady                     // ready
+	StatusOffline SystemStatus = 99 // offline
+)
+
+// Status is the real-time grill status. It is a cleaned up version of the
+// status returned from the MQTT subscription. If there was an error receiving
+// the message the Error field is set.
 type Status struct {
 	Error           error        `json:"error,omitempty"`
 	Ambient         int          `json:"ambient"`
@@ -35,12 +49,14 @@ type Status struct {
 	Smoke           int          `json:"smoke,omitempty"`
 	Time            time.Time    `json:"time"`
 	Units           Units        `json:"units"`
+	SystemStatus    SystemStatus `json:"system_status"`
 }
 
 type prodThingUpdate struct {
 	Status status `json:"status"`
 }
 
+// status is the raw message returned from the MQTT subscription.
 type status struct {
 	Ambient           int    `json:"ambient"` // temperature
 	Connected         bool   `json:"connected"`
@@ -129,6 +145,7 @@ func newUpdate(data []byte) Status {
 		Smoke:           msg.Status.Smoke,
 		Time:            time.Unix(msg.Status.Time, 0),
 		Units:           Units(msg.Status.Units),
+		SystemStatus:    SystemStatus(msg.Status.SystemStatus),
 	}
 }
 

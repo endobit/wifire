@@ -234,13 +234,18 @@ func status(grill *wifire.Grill, out io.Writer, history []wifire.Status) { //nol
 		}
 
 		attrs := []slog.Attr{
+			slog.String("status", msg.SystemStatus.String()),
 			slog.String("units", msg.Units.String()),
 			slog.Int("ambient", msg.Ambient),
 			slog.Int("grill", msg.Grill),
 			slog.Int("grill_set", msg.GrillSet),
-			slog.Int("probe", msg.Probe),
-			slog.Int("probe_set", msg.ProbeSet),
-			slog.Bool("probe_alarm", msg.ProbeAlarmFired),
+		}
+
+		if msg.ProbeConnected {
+			attrs = append(attrs,
+				slog.Int("probe", msg.Probe),
+				slog.Int("probe_set", msg.ProbeSet),
+				slog.Bool("probe_alarm", msg.ProbeAlarmFired))
 		}
 
 		// Calculate ETA using exponential prediction model
