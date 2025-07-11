@@ -8,6 +8,14 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
+//go:generate go tool enumer -type Units -linecomment
+type Units int
+
+const (
+	UnitsCelsius    Units = iota // celsius
+	UnitsFahrenheit              // fahrenheit
+)
+
 // Status is the grill status returned from the MQTT subscription. If there was
 // an error receiving the message the Error field is set.
 type Status struct {
@@ -26,7 +34,7 @@ type Status struct {
 	RealTime        int          `json:"real_time,omitempty"`
 	Smoke           int          `json:"smoke,omitempty"`
 	Time            time.Time    `json:"time"`
-	Units           int          `json:"units"`
+	Units           Units        `json:"units"`
 }
 
 type prodThingUpdate struct {
@@ -120,7 +128,7 @@ func newUpdate(data []byte) Status {
 		RealTime:        msg.Status.RealTime,
 		Smoke:           msg.Status.Smoke,
 		Time:            time.Unix(msg.Status.Time, 0),
-		Units:           msg.Status.Units,
+		Units:           Units(msg.Status.Units),
 	}
 }
 

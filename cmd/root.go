@@ -234,6 +234,7 @@ func status(grill *wifire.Grill, out io.Writer, history []wifire.Status) { //nol
 		}
 
 		attrs := []slog.Attr{
+			slog.String("units", msg.Units.String()),
 			slog.Int("ambient", msg.Ambient),
 			slog.Int("grill", msg.Grill),
 			slog.Int("grill_set", msg.GrillSet),
@@ -278,7 +279,7 @@ func status(grill *wifire.Grill, out io.Writer, history []wifire.Status) { //nol
 					eTau := exponentialPredictor.GetTimeConstant()
 
 					wifire.Logger(wifire.LogDebug, "eta_models", fmt.Sprintf(
-						"source=%s, exp_eta=%.1fm (temp=%.2f, vel=%.2f°F/hr, unc=%.2f, tau=%.0fs), final_eta=%.1fm",
+						"source=%s, exp_eta=%.1fm (temp=%.2f, vel=%.2f°/hr, unc=%.2f, tau=%.0fs), final_eta=%.1fm",
 						etaSource, exponentialETA.Minutes(), eTemp, eVelocity*3600, eUncertainty, eTau,
 						bestETA.Minutes()))
 				}
