@@ -28,12 +28,12 @@ type Config struct {
 	Password string `mapstructure:"password"`
 }
 
-func newRootCmd() *cobra.Command {
+func newRootCmd() *cobra.Command { //nolint:gocognit
 	var (
 		output   string
 		logLevel string
 		debug    bool
-		v        *viper.Viper
+		v        *viper.Viper //nolint:varnamelen
 	)
 
 	cmd := cobra.Command{
@@ -145,6 +145,7 @@ func newRootCmd() *cobra.Command {
 	if err := v.BindPFlag("username", cmd.Flags().Lookup("username")); err != nil {
 		panic(err)
 	}
+
 	if err := v.BindPFlag("password", cmd.Flags().Lookup("password")); err != nil {
 		panic(err)
 	}
@@ -171,6 +172,7 @@ func configFilePath(appName string) string {
 			if err != nil {
 				return ""
 			}
+
 			baseDir = filepath.Join(home, ".config")
 		}
 	}
@@ -215,6 +217,7 @@ func status(grill *wifire.Grill, out io.Writer, history []wifire.Status) { //nol
 	for msg := range ch {
 		if !msg.Connected {
 			slog.Warn("grill disconnected")
+
 			continue
 		}
 
