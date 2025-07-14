@@ -12,6 +12,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -27,15 +29,23 @@ import (
 
 // Client is a handle for the Client API connection.
 type Client struct {
-	logger       *slog.Logger
-	idToken      string
-	refreshToken string
-	username     string
-	password     string
-	baseURL      string
-	region       string
-	cognito      *cognitoidentityprovider.Client
-	clientID     string
+	logger          *slog.Logger
+	username        string
+	password        string
+	baseURL         string
+	region          string
+	clientID        string
+	cognito         *cognitoidentityprovider.Client
+	conn            connection
+	isMQTTConnected atomic.Bool
+}
+
+type connection struct {
+	mutex          sync.RWMutex
+	idToken        string
+	idTokenExpires time.Time
+	refreshToken   string
+	mqttClient     mqtt.Client
 }
 
 var (
@@ -109,6 +119,9 @@ func NewClient(opts ...func(*Client)) (*Client, error) {
 
 // UserData fetches the /prod/users/self information from the WiFire API.
 func (c *Client) UserData() (*GetUserDataResponse, error) {
+	c.conn.mutex.RLock()
+	defer c.conn.mutex.RUnlock()
+
 	client := http.Client{}
 
 	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/prod/users/self", http.NoBody)
@@ -116,7 +129,7 @@ func (c *Client) UserData() (*GetUserDataResponse, error) {
 		return nil, err
 	}
 
-	req.Header.Set("authorization", c.idToken)
+	req.Header.Set("authorization", c.conn.idToken)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -129,7 +142,7 @@ func (c *Client) UserData() (*GetUserDataResponse, error) {
 		return nil, fmt.Errorf("failed to fetch user data %d", resp.StatusCode)
 	}
 
-	if err := c.logResponseBody("prod/users/self", resp); err != nil {
+	if err := logResponseBody(c.logger, "prod/users/self", resp); err != nil {
 		return nil, err
 	}
 
@@ -142,50 +155,219 @@ func (c *Client) UserData() (*GetUserDataResponse, error) {
 	return &data, nil
 }
 
-func (c *Client) MQTT() (mqtt.Client, error) {
+// MQTTConnect establishes the MQTT connection to the Grill.
+func (c *Client) MQTTConnect() error {
+	if c.isMQTTConnected.Load() {
+		return nil
+	}
+
+	// The ID Token has a 60m TTL and mqtt connections are much longer. If a
+	// subscription gets disconnected it may need to re-login before
+	// reconnecting.
+
+	if err := c.mqttConnect(); err != nil {
+		if err := c.login(); err != nil {
+			return err
+		}
+
+		return c.mqttConnect()
+	}
+
+	return nil
+}
+
+// MQTTDisconnect closed the MQTT connection to the Grill.
+func (c *Client) MQTTDisconnect() {
+	c.conn.mutex.RLock()
+	defer c.conn.mutex.RUnlock()
+
+	c.conn.mqttClient.Disconnect(0)
+}
+
+// MQTTSubscribeStatus subscribes to the prod/thing/update for the grill.
+// Updates are pushed to the returned channel.
+func (c *Client) MQTTSubscribeStatus(grill string, subscriber chan Status) error {
+	c.conn.mutex.RLock()
+	defer c.conn.mutex.RUnlock()
+
+	token := c.conn.mqttClient.Subscribe("prod/thing/update/"+grill, 1, func(_ mqtt.Client, m mqtt.Message) {
+		var msg map[string]any
+
+		payload := m.Payload()
+
+		if err := json.Unmarshal(payload, &msg); err != nil {
+			slog.Error("bad message", "msg", string(payload))
+		}
+
+		m.Ack() // doesn't do anything
+
+		c.logger.LogAttrs(context.Background(), log.LevelTrace, "rx",
+			slog.Bool("duplicate", m.Duplicate()),
+			slog.Any("qos", m.Qos()),
+			slog.Bool("retained", m.Retained()),
+			slog.String("topic", m.Topic()),
+			slog.Any("message_id", m.MessageID()),
+			slog.Any("payload", msg))
+
+		subscriber <- newUpdate(payload)
+	})
+
+	token.Wait()
+
+	return nil
+}
+
+func (c *Client) MQTTIsConnected() bool {
+	return c.isMQTTConnected.Load()
+}
+
+// login performs the login to the cognito service and obtains an ID token. If
+// an ID token already exists use the refresh token to obtain a new one. There
+// is no check if the current ID token is expired, it is up to the caller to
+// decide when to refresh it.
+//
+// Caller should monitor service connection and refresh as needed.
+func (c *Client) login() error {
+	c.conn.mutex.Lock()
+	defer c.conn.mutex.Unlock()
+
+	var input *cognitoidentityprovider.InitiateAuthInput
+
+	if c.conn.idToken == "" { // basic auth
+		input = &cognitoidentityprovider.InitiateAuthInput{
+			AuthFlow: types.AuthFlowTypeUserPasswordAuth,
+			ClientId: aws.String(c.clientID),
+			AuthParameters: map[string]string{
+				"USERNAME": c.username,
+				"PASSWORD": c.password,
+			},
+		}
+	} else { // refresh token
+		input = &cognitoidentityprovider.InitiateAuthInput{
+			AuthFlow: types.AuthFlowTypeRefreshTokenAuth,
+			ClientId: aws.String(c.clientID),
+			AuthParameters: map[string]string{
+				"REFRESH_TOKEN": c.conn.refreshToken,
+			},
+		}
+	}
+
+	resp, err := c.cognito.InitiateAuth(context.Background(), input)
+	if err != nil {
+		c.conn.idToken = ""
+		c.conn.refreshToken = ""
+
+		return fmt.Errorf("cannot initiate auth: %w", err)
+	}
+
+	auth := resp.AuthenticationResult
+
+	if auth.IdToken == nil {
+		return errors.New("no id token in authentication result")
+	}
+
+	if auth.RefreshToken == nil {
+		return errors.New("no refresh token in authentication result")
+	}
+
+	c.conn.idToken = *auth.IdToken
+	c.conn.refreshToken = *auth.RefreshToken // opaque, not JWT
+
+	exp, err := tokenInfo(c.conn.idToken)
+	if err != nil {
+		return fmt.Errorf("id token: %w", err)
+	}
+
+	c.conn.idTokenExpires = *exp
+
+	return nil
+}
+
+func (c *Client) mqttConnect() error {
+	c.conn.mutex.Lock()
+	defer c.conn.mutex.Unlock()
+
 	client := http.Client{}
 
 	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/prod/mqtt-connections", http.NoBody)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	req.Header.Set("authorization", c.idToken)
+	req.Header.Set("authorization", c.conn.idToken)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch mqtt connection: %d", resp.StatusCode)
+		return fmt.Errorf("failed to fetch mqtt connection: %d", resp.StatusCode)
 	}
 
-	if err := c.logResponseBody("prod/mqtt-connections", resp); err != nil {
-		return nil, err
+	if err := logResponseBody(c.logger, "prod/mqtt-connections", resp); err != nil {
+		return err
 	}
 
 	var data getMQTTResponse
 
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
+		return err
 	}
 
 	c.logger.Info("mqtt connection", "expires", time.Unix(int64(data.ExpiresAt), 0))
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(data.SignedURL)
-	opts.OnConnectionLost = c.mqttConnectionLost
+	opts.OnConnect = c.mqttConnectCallback
+	opts.OnConnectionLost = c.mqttConnectionLostCallback
 
-	return mqtt.NewClient(opts), nil
+	c.conn.mqttClient = mqtt.NewClient(opts)
+
+	if token := c.conn.mqttClient.Connect(); token.Wait() && token.Error() != nil {
+		return token.Error()
+	}
+
+	return nil
+}
+
+func (c *Client) mqttConnectCallback(_ mqtt.Client) {
+	c.logger.Info("mqtt connection established")
+	c.isMQTTConnected.Store(true)
+}
+
+func (c *Client) mqttConnectionLostCallback(_ mqtt.Client, _ error) {
+	c.logger.Error("connection lost callback")
+	c.isMQTTConnected.Store(false)
+}
+
+func tokenInfo(token string) (expires *time.Time, err error) {
+	tokenData, _, err := jwt.NewParser().ParseUnverified(token, jwt.MapClaims{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse token: %w", err)
+	}
+
+	claims, ok := tokenData.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errors.New("failed to parse token claims")
+	}
+
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		return nil, errors.New("no expiration in token claims")
+	}
+
+	t := time.Unix(int64(exp), 0)
+
+	return &t, nil
 }
 
 // logResponseBody makes a copy of the response body and logs it. Because it
 // consumes the body it duplicates it and replaces the original. It also closes
 // the body it consumes.
-func (c *Client) logResponseBody(name string, resp *http.Response) error {
+func logResponseBody(logger *slog.Logger, name string, resp *http.Response) error {
 	ctx := context.Background()
 
 	body, err := io.ReadAll(resp.Body)
@@ -201,7 +383,7 @@ func (c *Client) logResponseBody(name string, resp *http.Response) error {
 	var msg map[string]any
 
 	if err := json.Unmarshal(body, &msg); err != nil {
-		c.logger.Log(ctx, log.LevelTrace, "rx", "endpoint", name, "body", string(body))
+		logger.Log(ctx, log.LevelTrace, "rx", "endpoint", name, "body", string(body))
 
 		return nil
 	}
@@ -209,82 +391,28 @@ func (c *Client) logResponseBody(name string, resp *http.Response) error {
 	return nil
 }
 
-func (c *Client) mqttConnectionLost(_ mqtt.Client, _ error) {
-	// TODO: find a way to trigger this and figure out what to do.
-	c.logger.Error("connection lost callback")
-}
+func newUpdate(data []byte) Status {
+	var msg prodThingUpdate
 
-func (c *Client) refresh() error { //nolint:unused
-	input := &cognitoidentityprovider.InitiateAuthInput{
-		AuthFlow: types.AuthFlowTypeRefreshTokenAuth,
-		ClientId: aws.String(c.clientID),
-		AuthParameters: map[string]string{
-			"REFRESH_TOKEN": c.refreshToken,
-		},
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return Status{Error: err}
 	}
 
-	resp, err := c.cognito.InitiateAuth(context.Background(), input)
-	if err != nil {
-		return fmt.Errorf("cannot refresh failed: %w", err)
+	return Status{
+		Ambient:         msg.Status.Ambient,
+		Connected:       msg.Status.Connected,
+		Grill:           msg.Status.Grill,
+		GrillSet:        msg.Status.Set,
+		KeepWarm:        msg.Status.KeepWarm,
+		PelletLevel:     msg.Status.PelletLevel,
+		Probe:           msg.Status.Probe,
+		ProbeAlarmFired: msg.Status.ProbeAlarmFired != 0,
+		ProbeConnected:  msg.Status.ProbeConnected != 0,
+		ProbeSet:        msg.Status.ProbeSet,
+		RealTime:        msg.Status.RealTime,
+		Smoke:           msg.Status.Smoke,
+		Time:            time.Unix(msg.Status.Time, 0),
+		Units:           Units(msg.Status.Units),
+		SystemStatus:    SystemStatus(msg.Status.SystemStatus),
 	}
-
-	auth := resp.AuthenticationResult
-
-	if auth.IdToken == nil {
-		return errors.New("no ID token in authentication result")
-	}
-
-	c.idToken = aws.ToString(resp.AuthenticationResult.IdToken)
-
-	return logTokenInfo(c.logger, "ID token", c.idToken)
-}
-
-func (c *Client) login() error {
-	input := &cognitoidentityprovider.InitiateAuthInput{
-		AuthFlow: types.AuthFlowTypeUserPasswordAuth,
-		ClientId: aws.String(c.clientID),
-		AuthParameters: map[string]string{
-			"USERNAME": c.username,
-			"PASSWORD": c.password,
-		},
-	}
-
-	resp, err := c.cognito.InitiateAuth(context.Background(), input)
-	if err != nil {
-		return fmt.Errorf("cannot initiate auth: %w", err)
-	}
-
-	auth := resp.AuthenticationResult
-
-	if auth.IdToken == nil {
-		return errors.New("no ID token in authentication result")
-	}
-
-	if auth.RefreshToken == nil {
-		return errors.New("no refresh token in authentication result")
-	}
-
-	c.idToken = *auth.IdToken
-	c.refreshToken = *auth.RefreshToken // opaque, not JWT
-
-	return logTokenInfo(c.logger, "id token", c.idToken)
-}
-
-func logTokenInfo(logger *slog.Logger, name, token string) error {
-	tokenData, _, err := jwt.NewParser().ParseUnverified(token, jwt.MapClaims{})
-	if err != nil {
-		return fmt.Errorf("failed to parse %s: %w", name, err)
-	}
-
-	claims, ok := tokenData.Claims.(jwt.MapClaims)
-	if !ok {
-		return fmt.Errorf("invalid claims format in %s", name)
-	}
-
-	if exp, ok := claims["exp"].(float64); ok {
-		expires := time.Unix(int64(exp), 0)
-		logger.Info(name, "expires", expires)
-	}
-
-	return nil
 }

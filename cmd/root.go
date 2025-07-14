@@ -85,7 +85,18 @@ func newRootCmd() *cobra.Command { //nolint:gocognit
 			if err != nil {
 				return fmt.Errorf("failed to connect to grill: %w", err)
 			}
-			defer grill.Disconnect()
+
+			userData, err := grill.UserData()
+			if err != nil {
+				return err
+			}
+
+			if len(userData.Things) > 1 { // TODO: what to decide which grill to use?
+				logger.Warn("multiple grills found, using the first one")
+			}
+
+			thing := userData.Things[0]
+			logger.Info("found", "grill", thing.FriendlyName, "model", thing.GrillModel.Name)
 
 			// Load historical data from file on startup for better ETA stability
 			history := []wifire.Status{}
@@ -124,7 +135,7 @@ func newRootCmd() *cobra.Command { //nolint:gocognit
 				m.Output = f
 			}
 
-			return m.Run(cmd.Context())
+			return m.Run(cmd.Context(), thing.ThingName)
 		},
 	}
 
@@ -160,7 +171,7 @@ func newRootCmd() *cobra.Command { //nolint:gocognit
 
 var grillRegexp = regexp.MustCompile(`^\[([^\]]+)\]\s+(.+)$`)
 
-func connectToGrill(username, password string, logger *slog.Logger) (*wifire.Grill, error) {
+func connectToGrill(username, password string, logger *slog.Logger) (*wifire.Client, error) {
 	// When messages look like "[component] message", split out the component
 	// and do a little bit of structured logging.
 	filter := func(msg string) (string, []slog.Attr) {
@@ -184,31 +195,14 @@ func connectToGrill(username, password string, logger *slog.Logger) (*wifire.Gri
 	mqtt.WARN = legacy(slog.LevelWarn)
 	mqtt.DEBUG = legacy(slog.LevelDebug)
 
-	client, err := wifire.NewClient(
+	client, err := wifire.NewClient( // basic auth into cognito
 		wifire.WithLogger(logger),
 		wifire.Credentials(username, password))
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := client.UserData()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(data.Things) > 1 { // TODO: what to decide which grill to use?
-		logger.Warn("multiple grills found, using the first one")
-	}
-
-	thing := data.Things[0]
-	logger.Info("found", "grill", thing.FriendlyName, "model", thing.GrillModel.Name)
-
-	grill := wifire.NewGrill(thing.ThingName, client)
-	if err := grill.Connect(); err != nil {
-		return nil, err
-	}
-
-	return grill, nil
+	return client, nil
 }
 
 // loadHistoricalData reads existing JSON data from the output file to initialize history

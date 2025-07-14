@@ -13,12 +13,12 @@ import (
 
 type monitor struct {
 	Logger  *slog.Logger
-	Grill   *wifire.Grill
+	Grill   *wifire.Client
 	Output  io.Writer
 	History []wifire.Status
 }
 
-func (m *monitor) Run(ctx context.Context) error { //nolint:gocognit
+func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:gocognit
 	// Initialize exponential predictor for probe temperature prediction
 	exponentialPredictor := wifire.NewExponentialPredictor()
 
@@ -46,14 +46,34 @@ func (m *monitor) Run(ctx context.Context) error { //nolint:gocognit
 
 	subscription := make(chan wifire.Status, 1)
 
-	if err := m.Grill.SubscribeStatus(subscription); err != nil {
-		m.Logger.Error("cannot subscribe to status", "error", err)
+	var ticker *time.Ticker
 
-		return err
-	}
+	defer func() {
+		if ticker != nil {
+			ticker.Stop()
+		}
+
+		if m.Grill != nil {
+			m.Grill.MQTTDisconnect()
+		}
+	}()
 
 	for {
+		ticker = time.NewTicker(1 * time.Minute)
+
+		if !m.Grill.MQTTIsConnected() {
+			if err := m.Grill.MQTTConnect(); err != nil {
+				m.Logger.Error("cannot connect to MQTT", "error", err)
+			} else {
+				if err := m.Grill.MQTTSubscribeStatus(grillName, subscription); err != nil {
+					m.Logger.Error("cannot subscribe to status", "error", err)
+					m.Grill.MQTTDisconnect()
+				}
+			}
+		}
+
 		select {
+		case <-ticker.C:
 		case <-ctx.Done():
 			m.Logger.Info("interrupted, aborting")
 
