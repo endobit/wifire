@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.29.17
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.53.2
 	github.com/eclipse/paho.mqtt.golang v1.5.0
-	github.com/golang-jwt/jwt/v5 v5.2.2
+	github.com/golang-jwt/jwt/v5 v5.2.3
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	gonum.org/v1/plot v0.16.0
@@ -50,7 +50,6 @@ require (
 	github.com/spf13/cast v1.9.2 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/image v0.29.0 // indirect
 	golang.org/x/mod v0.26.0 // indirect
