@@ -10,21 +10,26 @@ import (
 const (
 	_SystemStatusName_0      = "ready"
 	_SystemStatusLowerName_0 = "ready"
-	_SystemStatusName_1      = "offline"
-	_SystemStatusLowerName_1 = "offline"
+	_SystemStatusName_1      = "cooking"
+	_SystemStatusLowerName_1 = "cooking"
+	_SystemStatusName_2      = "offline"
+	_SystemStatusLowerName_2 = "offline"
 )
 
 var (
 	_SystemStatusIndex_0 = [...]uint8{0, 5}
 	_SystemStatusIndex_1 = [...]uint8{0, 7}
+	_SystemStatusIndex_2 = [...]uint8{0, 7}
 )
 
 func (i SystemStatus) String() string {
 	switch {
 	case i == 3:
 		return _SystemStatusName_0
-	case i == 99:
+	case i == 6:
 		return _SystemStatusName_1
+	case i == 99:
+		return _SystemStatusName_2
 	default:
 		return fmt.Sprintf("SystemStatus(%d)", i)
 	}
@@ -35,21 +40,25 @@ func (i SystemStatus) String() string {
 func _SystemStatusNoOp() {
 	var x [1]struct{}
 	_ = x[StatusReady-(3)]
+	_ = x[StatusCooking-(6)]
 	_ = x[StatusOffline-(99)]
 }
 
-var _SystemStatusValues = []SystemStatus{StatusReady, StatusOffline}
+var _SystemStatusValues = []SystemStatus{StatusReady, StatusCooking, StatusOffline}
 
 var _SystemStatusNameToValueMap = map[string]SystemStatus{
 	_SystemStatusName_0[0:5]:      StatusReady,
 	_SystemStatusLowerName_0[0:5]: StatusReady,
-	_SystemStatusName_1[0:7]:      StatusOffline,
-	_SystemStatusLowerName_1[0:7]: StatusOffline,
+	_SystemStatusName_1[0:7]:      StatusCooking,
+	_SystemStatusLowerName_1[0:7]: StatusCooking,
+	_SystemStatusName_2[0:7]:      StatusOffline,
+	_SystemStatusLowerName_2[0:7]: StatusOffline,
 }
 
 var _SystemStatusNames = []string{
 	_SystemStatusName_0[0:5],
 	_SystemStatusName_1[0:7],
+	_SystemStatusName_2[0:7],
 }
 
 // SystemStatusString retrieves an enum value from the enum constants string name.
