@@ -22,7 +22,10 @@ const (
 	_ SystemStatus = iota
 	_
 	_
-	StatusReady                     // ready
+	StatusReady // ready
+	_
+	_
+	StatusCooking                   // cooking
 	StatusOffline SystemStatus = 99 // offline
 )
 
