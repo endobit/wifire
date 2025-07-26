@@ -101,6 +101,8 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 				m.History = m.History[1:]
 			}
 
+			var logMsg string
+
 			attrs := []slog.Attr{
 				slog.String("status", msg.SystemStatus.String()),
 				slog.String("units", msg.Units.String()),
@@ -112,8 +114,10 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 			if msg.ProbeConnected {
 				attrs = append(attrs,
 					slog.Int("probe", msg.Probe),
-					slog.Int("probe_set", msg.ProbeSet),
-					slog.Bool("probe_alarm", msg.ProbeAlarmFired))
+					slog.Int("probe_set", msg.ProbeSet))
+				if msg.ProbeAlarmFired {
+					logMsg = "probe alarm"
+				}
 			}
 
 			// Calculate ETA using exponential prediction model
@@ -161,7 +165,7 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 				}
 			}
 
-			m.Logger.LogAttrs(context.TODO(), slog.LevelInfo, "", attrs...)
+			m.Logger.LogAttrs(context.TODO(), slog.LevelInfo, logMsg, attrs...)
 
 			if m.Output != nil {
 				b, err := json.Marshal(msg)
