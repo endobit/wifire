@@ -234,6 +234,7 @@ func (c *Client) login() error {
 	var input *cognitoidentityprovider.InitiateAuthInput
 
 	if c.conn.idToken == "" { // basic auth
+		c.logger.Info("logging in with basic auth")
 		input = &cognitoidentityprovider.InitiateAuthInput{
 			AuthFlow: types.AuthFlowTypeUserPasswordAuth,
 			ClientId: aws.String(c.clientID),
@@ -243,6 +244,7 @@ func (c *Client) login() error {
 			},
 		}
 	} else { // refresh token
+		c.logger.Info("refreshing id token with refresh token")
 		input = &cognitoidentityprovider.InitiateAuthInput{
 			AuthFlow: types.AuthFlowTypeRefreshTokenAuth,
 			ClientId: aws.String(c.clientID),
@@ -255,7 +257,6 @@ func (c *Client) login() error {
 	resp, err := c.cognito.InitiateAuth(context.Background(), input)
 	if err != nil {
 		c.conn.idToken = ""
-		c.conn.refreshToken = ""
 
 		return fmt.Errorf("cannot initiate auth: %w", err)
 	}
@@ -266,12 +267,13 @@ func (c *Client) login() error {
 		return errors.New("no id token in authentication result")
 	}
 
-	if auth.RefreshToken == nil {
-		return errors.New("no refresh token in authentication result")
-	}
-
 	c.conn.idToken = *auth.IdToken
-	c.conn.refreshToken = *auth.RefreshToken // opaque, not JWT
+
+	if auth.RefreshToken == nil {
+		c.logger.Warn("no refresh token in authentication result")
+	} else {
+		c.conn.refreshToken = *auth.RefreshToken // opaque, not JWT
+	}
 
 	exp, err := tokenInfo(c.conn.idToken)
 	if err != nil {

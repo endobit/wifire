@@ -21,11 +21,15 @@ type SystemStatus int
 const (
 	_ SystemStatus = iota
 	_
+	StatusSleeping // sleeping
+	StatusReady    // ready
 	_
-	StatusReady // ready
 	_
+	StatusCooking // cooking
 	_
-	StatusCooking                   // cooking
+	StatusKeepWarm // keep warm
+	StatusShutdown // shutdown
+
 	StatusOffline SystemStatus = 99 // offline
 )
 

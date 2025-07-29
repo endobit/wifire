@@ -150,7 +150,7 @@ func newRootCmd() *cobra.Command { //nolint:gocognit
 
 	logOpts = log.NewOptions(cmd.PersistentFlags())
 
-	cmd.Flags().StringVar(&output, "output", "", "log grill data to file")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "log grill data to file")
 	cmd.Flags().String("username", "", "account username")
 	cmd.Flags().String("password", "", "account password")
 

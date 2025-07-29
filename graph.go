@@ -9,7 +9,6 @@ import (
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
-	"gonum.org/v1/plot/vg/draw"
 )
 
 // PlotterOptions is used to configure the Plotter.
@@ -23,7 +22,13 @@ type PlotterOptions struct {
 	GrillColor       color.Color
 	MarkerColor      color.Color
 	Data             []Status
-	Markers          []time.Duration
+	Markers          []Marker
+}
+
+// Marker is an annotation point on the graph.
+type Marker struct {
+	Label string
+	Time  time.Time
 }
 
 // Plotter creates a graph of the wifire Status data.
@@ -92,13 +97,14 @@ func NewPlotter(options *PlotterOptions) *Plotter {
 // caller should call plot.Save to create the graph files. This allows the
 // caller to define the Plot size and graphics format.
 func (p *Plotter) Plot() (*plot.Plot, error) {
-	if p.options.Data == nil {
+	duration := statusDuration(p.options.Data)
+	if duration == nil {
 		return nil, errors.New("no data")
 	}
 
 	ambient := make(plotter.XYs, len(p.options.Data))
 
-	for i, d := range normalizeStatus(p.options.Data) {
+	for i, d := range duration {
 		switch p.options.Period {
 		case ByMinute:
 			ambient[i].X = d.Minutes()
@@ -127,8 +133,6 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 		maxETA  float64
 	)
 
-	normalizedTimes := normalizeStatus(p.options.Data)
-
 	for i := range p.options.Data {
 		if p.options.Data[i].Grill > maxTemp {
 			maxTemp = p.options.Data[i].Grill
@@ -145,11 +149,11 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 
 			switch p.options.Period {
 			case ByMinute:
-				xValue = normalizedTimes[i].Minutes()
+				xValue = duration[i].Minutes()
 			case ByHour:
-				xValue = normalizedTimes[i].Hours()
+				xValue = duration[i].Hours()
 			case ByDay:
-				xValue = normalizedTimes[i].Hours() / 24
+				xValue = duration[i].Hours() / 24
 			}
 
 			etaMinutes := p.options.Data[i].ProbeETA.Duration().Minutes()
@@ -164,19 +168,45 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 		}
 	}
 
-	markers := make(plotter.XYs, len(p.options.Markers))
+	var ( //nolint:prealloc
+		markerXYs    plotter.XYs
+		markerLabels []string
+	)
 
-	for i, m := range p.options.Markers {
+	t0 := p.options.Data[0].Time
+
+	for _, m := range p.options.Markers {
+		var xValue float64
+
+		d := m.Time.Sub(t0)
+
 		switch p.options.Period {
 		case ByMinute:
-			markers[i].X = m.Minutes()
+			xValue = d.Minutes()
 		case ByHour:
-			markers[i].X = m.Hours()
+			xValue = d.Hours()
 		case ByDay:
-			markers[i].X = m.Hours() / 24
+			xValue = d.Hours() / 24
 		}
 
-		markers[i].Y = float64(maxTemp) / 2 // put markers in the middle of the data
+		markerXYs = append(markerXYs, plotter.XY{
+			X: xValue,
+			Y: float64(maxTemp) / 2, // put markers in the middle of the data
+		})
+
+		markerLabels = append(markerLabels, m.Label)
+	}
+
+	markers, err := plotter.NewLabels(plotter.XYLabels{
+		XYs:    markerXYs,
+		Labels: markerLabels,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create markers: %w", err)
+	}
+
+	for i := range markers.TextStyle {
+		markers.TextStyle[i].Color = p.options.MarkerColor
 	}
 
 	p.plot = plot.New()
@@ -202,10 +232,8 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 		}
 	}
 
-	if len(markers) > 0 {
-		if err := p.markers(markers); err != nil {
-			return nil, fmt.Errorf("markers: %w", err)
-		}
+	if len(markers.Labels) > 0 {
+		p.plot.Add(markers)
 	}
 
 	p.plot.Add(plotter.NewGrid())
@@ -291,38 +319,10 @@ func (p *Plotter) probe(actual, set plotter.XYs) error {
 	return nil
 }
 
-func (p *Plotter) markers(marks plotter.XYs) error {
-	if marks == nil {
-		return nil // markers are optional
-	}
-
-	m, err := plotter.NewScatter(marks)
-	if err != nil {
-		return err
-	}
-
-	m.Shape = draw.CrossGlyph{}
-	m.Radius = vg.Points(4)
-	m.Color = p.options.MarkerColor
-	p.plot.Add(m)
-	p.plot.Legend.Add("events", m)
-
-	return nil
-}
-
 func (p *Plotter) probeETA(data plotter.XYs, maxTemp int, maxETA float64) error {
 	if len(data) == 0 {
 		return nil // probeETA is optional
 	}
-
-	// Create a line plot for the ETA data
-	line, err := plotter.NewLine(data)
-	if err != nil {
-		return err
-	}
-
-	line.Color = p.options.ProbeETAColor
-	line.Dashes = []vg.Length{vg.Points(2), vg.Points(3)} // Dotted line to distinguish from other data
 
 	// Scale ETA to fit within the temperature range for visibility
 	// We'll scale it to use the upper portion of the temperature range
@@ -334,13 +334,22 @@ func (p *Plotter) probeETA(data plotter.XYs, maxTemp int, maxETA float64) error 
 		data[i].Y += float64(maxTemp) * 0.7 // Position in upper 30% of chart
 	}
 
+	// Create a line plot for the ETA data
+	line, err := plotter.NewLine(data)
+	if err != nil {
+		return err
+	}
+
+	line.Color = p.options.ProbeETAColor
+	line.Dashes = []vg.Length{vg.Points(2), vg.Points(3)} // Dotted line to distinguish from other data
+
 	p.plot.Add(line)
 	p.plot.Legend.Add("probe ETA (scaled)", line)
 
 	return nil
 }
 
-func normalizeStatus(s []Status) []time.Duration {
+func statusDuration(s []Status) []time.Duration {
 	if len(s) == 0 {
 		return nil
 	}

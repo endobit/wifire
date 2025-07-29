@@ -8,28 +8,35 @@ import (
 )
 
 const (
-	_SystemStatusName_0      = "ready"
-	_SystemStatusLowerName_0 = "ready"
+	_SystemStatusName_0      = "sleepingready"
+	_SystemStatusLowerName_0 = "sleepingready"
 	_SystemStatusName_1      = "cooking"
 	_SystemStatusLowerName_1 = "cooking"
-	_SystemStatusName_2      = "offline"
-	_SystemStatusLowerName_2 = "offline"
+	_SystemStatusName_2      = "keep warmshutdown"
+	_SystemStatusLowerName_2 = "keep warmshutdown"
+	_SystemStatusName_3      = "offline"
+	_SystemStatusLowerName_3 = "offline"
 )
 
 var (
-	_SystemStatusIndex_0 = [...]uint8{0, 5}
+	_SystemStatusIndex_0 = [...]uint8{0, 8, 13}
 	_SystemStatusIndex_1 = [...]uint8{0, 7}
-	_SystemStatusIndex_2 = [...]uint8{0, 7}
+	_SystemStatusIndex_2 = [...]uint8{0, 9, 17}
+	_SystemStatusIndex_3 = [...]uint8{0, 7}
 )
 
 func (i SystemStatus) String() string {
 	switch {
-	case i == 3:
-		return _SystemStatusName_0
+	case 2 <= i && i <= 3:
+		i -= 2
+		return _SystemStatusName_0[_SystemStatusIndex_0[i]:_SystemStatusIndex_0[i+1]]
 	case i == 6:
 		return _SystemStatusName_1
+	case 8 <= i && i <= 9:
+		i -= 8
+		return _SystemStatusName_2[_SystemStatusIndex_2[i]:_SystemStatusIndex_2[i+1]]
 	case i == 99:
-		return _SystemStatusName_2
+		return _SystemStatusName_3
 	default:
 		return fmt.Sprintf("SystemStatus(%d)", i)
 	}
@@ -39,26 +46,38 @@ func (i SystemStatus) String() string {
 // Re-run the stringer command to generate them again.
 func _SystemStatusNoOp() {
 	var x [1]struct{}
+	_ = x[StatusSleeping-(2)]
 	_ = x[StatusReady-(3)]
 	_ = x[StatusCooking-(6)]
+	_ = x[StatusKeepWarm-(8)]
+	_ = x[StatusShutdown-(9)]
 	_ = x[StatusOffline-(99)]
 }
 
-var _SystemStatusValues = []SystemStatus{StatusReady, StatusCooking, StatusOffline}
+var _SystemStatusValues = []SystemStatus{StatusSleeping, StatusReady, StatusCooking, StatusKeepWarm, StatusShutdown, StatusOffline}
 
 var _SystemStatusNameToValueMap = map[string]SystemStatus{
-	_SystemStatusName_0[0:5]:      StatusReady,
-	_SystemStatusLowerName_0[0:5]: StatusReady,
-	_SystemStatusName_1[0:7]:      StatusCooking,
-	_SystemStatusLowerName_1[0:7]: StatusCooking,
-	_SystemStatusName_2[0:7]:      StatusOffline,
-	_SystemStatusLowerName_2[0:7]: StatusOffline,
+	_SystemStatusName_0[0:8]:       StatusSleeping,
+	_SystemStatusLowerName_0[0:8]:  StatusSleeping,
+	_SystemStatusName_0[8:13]:      StatusReady,
+	_SystemStatusLowerName_0[8:13]: StatusReady,
+	_SystemStatusName_1[0:7]:       StatusCooking,
+	_SystemStatusLowerName_1[0:7]:  StatusCooking,
+	_SystemStatusName_2[0:9]:       StatusKeepWarm,
+	_SystemStatusLowerName_2[0:9]:  StatusKeepWarm,
+	_SystemStatusName_2[9:17]:      StatusShutdown,
+	_SystemStatusLowerName_2[9:17]: StatusShutdown,
+	_SystemStatusName_3[0:7]:       StatusOffline,
+	_SystemStatusLowerName_3[0:7]:  StatusOffline,
 }
 
 var _SystemStatusNames = []string{
-	_SystemStatusName_0[0:5],
+	_SystemStatusName_0[0:8],
+	_SystemStatusName_0[8:13],
 	_SystemStatusName_1[0:7],
-	_SystemStatusName_2[0:7],
+	_SystemStatusName_2[0:9],
+	_SystemStatusName_2[9:17],
+	_SystemStatusName_3[0:7],
 }
 
 // SystemStatusString retrieves an enum value from the enum constants string name.

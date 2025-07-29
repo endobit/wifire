@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 
@@ -11,11 +12,16 @@ import (
 	"endobit.io/wifire"
 )
 
+type Event struct {
+	Event string    `json:"event"`
+	Time  time.Time `json:"time"`
+}
+
 func newPlotCmd() *cobra.Command {
 	var (
-		input   string
-		output  string
-		markers []time.Duration
+		input  string
+		output string
+		events string
 	)
 
 	cmd := cobra.Command{
@@ -24,13 +30,13 @@ func newPlotCmd() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			fin, err := os.Open(input)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to open input file %q: %w", input, err)
 			}
 			defer fin.Close()
 
 			var temps []wifire.Status
 
-			for s := bufio.NewScanner(fin); s.Scan(); {
+			for s := bufio.NewScanner(fin); s.Scan(); { // log isn't json, but each line is
 				var status wifire.Status
 
 				if err := json.Unmarshal(s.Bytes(), &status); err != nil {
@@ -38,6 +44,29 @@ func newPlotCmd() *cobra.Command {
 				}
 
 				temps = append(temps, status)
+			}
+
+			var markers []wifire.Marker
+
+			if events != "" {
+				fin, err := os.Open(events)
+				if err != nil {
+					return fmt.Errorf("failed to open events file %q: %w", events, err)
+				}
+				defer fin.Close()
+
+				var events []Event
+
+				if err := json.NewDecoder(fin).Decode(&events); err != nil {
+					return fmt.Errorf("failed to decode events file %q: %w", events, err)
+				}
+
+				for _, e := range events {
+					markers = append(markers, wifire.Marker{
+						Time:  e.Time,
+						Label: e.Event,
+					})
+				}
 			}
 
 			p := wifire.NewPlotter(&wifire.PlotterOptions{
@@ -57,7 +86,7 @@ func newPlotCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&input, "input", "i", "", "input file")
 	cmd.Flags().StringVarP(&output, "output", "o", "wifire.png", "output file")
-	cmd.Flags().DurationSliceVar(&markers, "marker", nil, "set a time marker (e.g. \"4h30m\") ")
+	cmd.Flags().StringVar(&events, "events", "", "events file")
 
 	if err := cmd.MarkFlagRequired("input"); err != nil {
 		panic(err)
