@@ -5,7 +5,7 @@ go 1.24.5
 require (
 	endobit.io/app v0.1.0
 	endobit.io/table v0.4.0
-	github.com/aws/aws-sdk-go-v2 v1.36.6
+	github.com/aws/aws-sdk-go-v2 v1.39.0
 	github.com/aws/aws-sdk-go-v2/config v1.29.18
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.53.5
 	github.com/eclipse/paho.mqtt.golang v1.5.0
@@ -32,7 +32,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.25.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.34.1 // indirect
-	github.com/aws/smithy-go v1.22.5 // indirect
+	github.com/aws/smithy-go v1.23.0 // indirect
 	github.com/campoy/embedmd v1.0.0 // indirect
 	github.com/dmarkham/enumer v1.5.11 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
