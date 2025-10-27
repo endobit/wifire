@@ -6,7 +6,8 @@ package wifire
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -148,7 +149,8 @@ func (c *Client) UserData() (*GetUserDataResponse, error) {
 
 	var data GetUserDataResponse
 
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	dec := jsontext.NewDecoder(resp.Body)
+	if err := json.UnmarshalDecode(dec, &data); err != nil {
 		return nil, err
 	}
 
@@ -248,6 +250,7 @@ func (c *Client) login() error {
 		}
 	} else { // refresh token
 		c.logger.Info("refreshing id token with refresh token")
+
 		input = &cognitoidentityprovider.InitiateAuthInput{
 			AuthFlow: types.AuthFlowTypeRefreshTokenAuth,
 			ClientId: aws.String(c.clientID),
@@ -318,7 +321,8 @@ func (c *Client) mqttConnect() error {
 
 	var data getMQTTResponse
 
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	dec := jsontext.NewDecoder(resp.Body)
+	if err := json.UnmarshalDecode(dec, &data); err != nil {
 		return err
 	}
 

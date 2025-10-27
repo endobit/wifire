@@ -156,7 +156,7 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 				xValue = duration[i].Hours() / 24
 			}
 
-			etaMinutes := p.options.Data[i].ProbeETA.Duration().Minutes()
+			etaMinutes := p.options.Data[i].ProbeETA.Minutes()
 			if etaMinutes > maxETA {
 				maxETA = etaMinutes
 			}

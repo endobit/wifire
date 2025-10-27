@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -99,7 +99,8 @@ func newRootCmd() *cobra.Command { //nolint:gocognit
 			logger.Info("found", "grill", thing.FriendlyName, "model", thing.GrillModel.Name)
 
 			// Load historical data from file on startup for better ETA stability
-			history := []wifire.Status{}
+			history := []status{}
+
 			if output != "" {
 				loadedHistory, err := loadHistoricalData(output, 20)
 				if err != nil {
@@ -132,6 +133,7 @@ func newRootCmd() *cobra.Command { //nolint:gocognit
 				}
 
 				defer f.Close()
+
 				m.Output = f
 			}
 
@@ -184,9 +186,7 @@ func connectToGrill(username, password string, logger *slog.Logger) (*wifire.Cli
 	}
 
 	legacy := func(level slog.Level) log.Legacy {
-		return log.NewLegacy(logger,
-			log.WithLevel(level),
-			log.WithFilter(filter))
+		return log.NewLegacy(logger, log.WithLevel(level), log.WithFilter(filter))
 	}
 
 	// wire in legacy logger for MQTT messages
@@ -195,9 +195,10 @@ func connectToGrill(username, password string, logger *slog.Logger) (*wifire.Cli
 	mqtt.WARN = legacy(slog.LevelWarn)
 	mqtt.DEBUG = legacy(slog.LevelDebug)
 
-	client, err := wifire.NewClient( // basic auth into cognito
+	client, err := wifire.NewClient(
 		wifire.WithLogger(logger),
-		wifire.Credentials(username, password))
+		wifire.Credentials(username, password), // basic auth into cognito
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +207,7 @@ func connectToGrill(username, password string, logger *slog.Logger) (*wifire.Cli
 }
 
 // loadHistoricalData reads existing JSON data from the output file to initialize history
-func loadHistoricalData(filename string, maxEntries int) ([]wifire.Status, error) {
+func loadHistoricalData(filename string, maxEntries int) ([]status, error) {
 	if filename == "" {
 		return nil, nil
 	}
@@ -222,7 +223,7 @@ func loadHistoricalData(filename string, maxEntries int) ([]wifire.Status, error
 	}
 	defer file.Close()
 
-	var history []wifire.Status
+	var history []status
 
 	scanner := bufio.NewScanner(file)
 
@@ -243,7 +244,8 @@ func loadHistoricalData(filename string, maxEntries int) ([]wifire.Status, error
 	}
 
 	for i := startIdx; i < len(lines); i++ {
-		var status wifire.Status
+		var status status
+
 		if err := json.Unmarshal([]byte(lines[i]), &status); err != nil {
 			// Skip invalid lines but continue processing
 			slog.Warn("skipping invalid JSON line in history file", "line", i+1, "error", err)

@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"log/slog"
 	"time"
@@ -15,7 +15,26 @@ type monitor struct {
 	Logger  *slog.Logger
 	Grill   *wifire.Client
 	Output  io.Writer
-	History []wifire.Status
+	History []status
+}
+
+type status struct {
+	Ambient         float64             `json:"ambient"`
+	Connected       bool                `json:"connected"`
+	Grill           float64             `json:"grill"`
+	GrillSet        float64             `json:"grill_set"`
+	KeepWarm        int                 `json:"keep_warm,omitempty"`
+	PelletLevel     int                 `json:"pellet_level,omitempty"`
+	Probe           float64             `json:"probe,omitempty"`
+	ProbeAlarmFired bool                `json:"probe_alarm_fired,omitempty"`
+	ProbeConnected  bool                `json:"probe_connected,omitempty"`
+	ProbeETA        time.Duration       `json:"probe_eta,omitempty,format:units"`
+	ProbeSet        float64             `json:"probe_set,omitempty"`
+	RealTime        bool                `json:"real_time,omitempty"`
+	Smoke           int                 `json:"smoke,omitempty"`
+	Time            time.Time           `json:"time"`
+	Units           wifire.Units        `json:"units"`
+	SystemStatus    wifire.SystemStatus `json:"system_status"`
 }
 
 func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:gocognit
@@ -30,8 +49,11 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 			status := &m.History[i]
 
 			if status.Probe > 0 && status.ProbeSet > 0 { // Only use valid probe readings
-				exponentialPredictor.Update(float64(status.Probe), status.Time,
-					float64(status.ProbeSet), float64(status.Grill), float64(status.GrillSet))
+				exponentialPredictor.Update(status.Probe,
+					status.Time,
+					status.ProbeSet,
+					status.Grill,
+					status.GrillSet)
 			}
 		}
 
@@ -80,23 +102,25 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 			return ctx.Err()
 
 		case msg := <-subscription:
+			if msg.Error != nil {
+				m.Logger.Error("invalid status", "error", msg.Error)
+			}
+
 			if !msg.Connected {
 				m.Logger.Warn("grill disconnected")
 
 				continue
 			}
 
-			if msg.Error != nil {
-				m.Logger.Error("invalid status", "error", msg.Error)
-			}
+			status := newStatus(&msg)
 
 			// Update predictor with new probe measurement
-			if msg.Probe > 0 && msg.ProbeSet > 0 {
-				exponentialPredictor.Update(float64(msg.Probe), msg.Time,
-					float64(msg.ProbeSet), float64(msg.Grill), float64(msg.GrillSet))
+			if status.Probe > 0 && status.ProbeSet > 0 {
+				exponentialPredictor.Update(float64(status.Probe), status.Time,
+					float64(status.ProbeSet), float64(status.Grill), float64(status.GrillSet))
 			}
 
-			m.History = append(m.History, msg)
+			m.History = append(m.History, *status)
 			if len(m.History) > 5 {
 				m.History = m.History[1:]
 			}
@@ -104,24 +128,26 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 			var logMsg string
 
 			attrs := []slog.Attr{
-				slog.String("status", msg.SystemStatus.String()),
-				slog.String("units", msg.Units.String()),
-				slog.Int("ambient", msg.Ambient),
-				slog.Int("grill", msg.Grill),
-				slog.Int("grill_set", msg.GrillSet),
+				slog.Any("status", status.SystemStatus),
+				slog.Any("units", status.Units),
+				slog.Float64("ambient", status.Ambient),
+				slog.Float64("grill", status.Grill),
+				slog.Float64("grill_set", status.GrillSet),
 			}
 
-			if msg.ProbeConnected {
-				attrs = append(attrs,
-					slog.Int("probe", msg.Probe),
-					slog.Int("probe_set", msg.ProbeSet))
-				if msg.ProbeAlarmFired {
+			if status.ProbeConnected {
+				attrs = append(attrs, slog.Float64("probe", status.Probe))
+				if status.ProbeSet > 0 {
+					attrs = append(attrs, slog.Float64("probe_set", status.ProbeSet))
+				}
+
+				if status.ProbeAlarmFired {
 					logMsg = "probe alarm"
 				}
 			}
 
 			// Calculate ETA using exponential prediction model
-			if msg.ProbeSet > 0 && msg.Probe < msg.ProbeSet {
+			if status.ProbeSet > 0 && status.Probe < status.ProbeSet {
 				var (
 					bestETA, exponentialETA time.Duration
 					etaSource               string
@@ -129,7 +155,7 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 
 				// Get exponential predictor prediction
 				if exponentialPredictor.IsInitialized() {
-					exponentialETA = exponentialPredictor.EstimateTimeToTarget(float64(msg.ProbeSet))
+					exponentialETA = exponentialPredictor.EstimateTimeToTarget(float64(status.ProbeSet))
 				}
 
 				// Use exponential predictor as primary, fallback to legacy calculation
@@ -138,12 +164,13 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 					etaSource = "exponential"
 				} else {
 					// Fallback to original calculation method
-					bestETA = m.calculateProbeETA(&msg)
+					bestETA = m.calculateProbeETA(status)
 					etaSource = "legacy"
 				}
 
 				if bestETA > 0 {
-					msg.ProbeETA = wifire.JSONDuration(bestETA)
+					msg.ProbeETA, status.ProbeETA = bestETA, bestETA // set ETA in both original and our internal status
+
 					attrs = append(attrs,
 						slog.Duration("probe_eta", bestETA.Round(time.Minute)),
 						slog.String("eta_source", etaSource))
@@ -167,7 +194,7 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 
 			m.Logger.LogAttrs(context.TODO(), slog.LevelInfo, logMsg, attrs...)
 
-			if m.Output != nil {
+			if m.Output != nil { // the original message plus calculated ETA gets logged to a file
 				b, err := json.Marshal(msg)
 				if err != nil {
 					m.Logger.Error("cannot marshal", "error", err)
@@ -181,7 +208,7 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 }
 
 // calculateProbeETA estimates time to reach target probe temperature using multiple factors
-func (m *monitor) calculateProbeETA(current *wifire.Status) time.Duration {
+func (m *monitor) calculateProbeETA(current *status) time.Duration {
 	if len(m.History) < 1 {
 		return 0
 	}
@@ -196,7 +223,7 @@ func (m *monitor) calculateProbeETA(current *wifire.Status) time.Duration {
 	}
 
 	// Calculate basic rate from first historical entry to current
-	tempChange := float64(last.Probe - first.Probe)
+	tempChange := last.Probe - first.Probe
 	timeChange := last.Time.Sub(first.Time).Seconds()
 
 	var (
@@ -351,4 +378,24 @@ func (m *monitor) calculateProbeETA(current *wifire.Status) time.Duration {
 		slog.String("temp_trend", tempTrend))
 
 	return time.Duration(etaSeconds) * time.Second
+}
+
+func newStatus(s *wifire.Status) *status {
+	// All temperatures converted to float64 for use with the prediction model
+	return &status{
+		Ambient:         float64(s.Ambient),
+		Connected:       s.Connected,
+		Grill:           float64(s.Grill),
+		GrillSet:        float64(s.GrillSet),
+		KeepWarm:        s.KeepWarm,
+		PelletLevel:     s.PelletLevel,
+		Probe:           float64(s.Probe),
+		ProbeAlarmFired: s.ProbeAlarmFired,
+		ProbeConnected:  s.ProbeConnected,
+		ProbeSet:        float64(s.ProbeSet),
+		Smoke:           s.Smoke,
+		Time:            s.Time,
+		Units:           s.Units,
+		SystemStatus:    s.SystemStatus,
+	}
 }

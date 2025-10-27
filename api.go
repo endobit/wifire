@@ -1,7 +1,6 @@
 package wifire
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -13,6 +12,23 @@ const (
 	UnitsCelsius    Units = iota // celsius
 	UnitsFahrenheit              // fahrenheit
 )
+
+// MarshalText implements the encoding.TextMarshaler interface for u.
+func (u Units) MarshalText() (text []byte, err error) {
+	return []byte(u.String()), nil
+}
+
+// UnmarshalText implements the encoding.TextUnmarshaler interface for u.
+func (u *Units) UnmarshalText(text []byte) error {
+	v, err := UnitsString(string(text))
+	if err != nil {
+		return err
+	}
+
+	*u = v
+
+	return nil
+}
 
 //go:generate go tool enumer -type SystemStatus -linecomment
 
@@ -32,6 +48,23 @@ const (
 
 	StatusOffline SystemStatus = 99 // offline
 )
+
+// MarshalText implements the encoding.TextMarshaler interface for s.
+func (s SystemStatus) MarshalText() (text []byte, err error) {
+	return []byte(s.String()), nil
+}
+
+// UnmarshalText implements the encoding.TextUnmarshaler interface for s.
+func (s *SystemStatus) UnmarshalText(text []byte) error {
+	v, err := SystemStatusString(string(text))
+	if err != nil {
+		return err
+	}
+
+	*s = v
+
+	return nil
+}
 
 // GetUserDataResponse is the wifire UserData.
 type GetUserDataResponse struct {
@@ -98,24 +131,25 @@ type getMQTTResponse struct {
 // Status is the real-time grill status. It is a cleaned up version of the
 // status returned from the MQTT subscription. If there was an error receiving
 // the message the Error field is set.
+//
+// The ProbeETA field is calculated separately and is included here for logging.
 type Status struct {
-	Error           error        `json:"error,omitempty"`
-	Ambient         int          `json:"ambient"`
-	Connected       bool         `json:"connected"`
-	Grill           int          `json:"grill"`
-	GrillSet        int          `json:"grill_set"`
-	KeepWarm        int          `json:"keep_warm,omitempty"`
-	PelletLevel     int          `json:"pellet_level,omitempty"`
-	Probe           int          `json:"probe,omitempty"`
-	ProbeAlarmFired bool         `json:"probe_alarm_fired,omitempty"`
-	ProbeConnected  bool         `json:"probe_connected,omitempty"`
-	ProbeETA        JSONDuration `json:"probe_eta,omitempty"`
-	ProbeSet        int          `json:"probe_set,omitempty"`
-	RealTime        int          `json:"real_time,omitempty"`
-	Smoke           int          `json:"smoke,omitempty"`
-	Time            time.Time    `json:"time"`
-	Units           Units        `json:"units"`
-	SystemStatus    SystemStatus `json:"system_status"`
+	Error           error         `json:"error,omitempty"`
+	Ambient         int           `json:"ambient"`
+	Connected       bool          `json:"connected"`
+	Grill           int           `json:"grill"`
+	GrillSet        int           `json:"grill_set"`
+	KeepWarm        int           `json:"keep_warm,omitempty"` // TODO: next smoke use keep warm to see if this is a bool
+	PelletLevel     int           `json:"pellet_level,omitempty"`
+	Probe           int           `json:"probe,omitempty"`
+	ProbeAlarmFired bool          `json:"probe_alarm_fired,omitempty"`
+	ProbeConnected  bool          `json:"probe_connected,omitempty"`
+	ProbeSet        int           `json:"probe_set,omitempty"`
+	Smoke           int           `json:"smoke,omitempty"`
+	Time            time.Time     `json:"time"`
+	Units           Units         `json:"units"`
+	SystemStatus    SystemStatus  `json:"system_status"`
+	ProbeETA        time.Duration `json:"probe_eta,omitempty,format:units"`
 }
 
 type prodThingUpdate struct {
@@ -124,8 +158,8 @@ type prodThingUpdate struct {
 
 // status is the raw message returned from the MQTT subscription.
 type status struct {
-	Ambient           int    `json:"ambient"`   // temperature
-	Connected         bool   `json:"connected"` // bool
+	Ambient           int    `json:"ambient"` // temperature
+	Connected         bool   `json:"connected"`
 	CookID            string `json:"cook_id"`
 	CooKTimerComplete int    `json:"cook_timer_complete"` // bool?
 	CookTimerEnd      int    `json:"cook_timer_end"`      // unix timestamp?
@@ -151,34 +185,4 @@ type status struct {
 	SystemStatus      int    `json:"system_status"`      // 3=ready, 99=offline
 	Time              int64  `json:"time"`               // unix timestamp
 	Units             int    `json:"units"`              // 0 for celsius, 1 for fahrenheit
-}
-
-// JSONDuration is a custom type that marshals time.Duration to JSON as a string
-type JSONDuration time.Duration
-
-// MarshalJSON implements json.Marshaler interface for JSONDuration
-func (d JSONDuration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(time.Duration(d).String())
-}
-
-// UnmarshalJSON implements json.Unmarshaler interface for JSONDuration
-func (d *JSONDuration) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-
-	duration, err := time.ParseDuration(s)
-	if err != nil {
-		return err
-	}
-
-	*d = JSONDuration(duration)
-
-	return nil
-}
-
-// Duration returns the underlying time.Duration
-func (d JSONDuration) Duration() time.Duration {
-	return time.Duration(d)
 }

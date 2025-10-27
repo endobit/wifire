@@ -2,7 +2,8 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"os"
 	"time"
@@ -57,7 +58,8 @@ func newPlotCmd() *cobra.Command {
 
 				var events []Event
 
-				if err := json.NewDecoder(fin).Decode(&events); err != nil {
+				dec := jsontext.NewDecoder(fin)
+				if err := json.UnmarshalDecode(dec, &events); err != nil {
 					return fmt.Errorf("failed to decode events file %q: %w", events, err)
 				}
 
