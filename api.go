@@ -23,9 +23,9 @@ const (
 	_
 	StatusSleeping // sleeping
 	StatusReady    // ready
-	_
-	_
-	StatusCooking // cooking
+	StatusIgniting // igniting
+	StatusHeating  // heating
+	StatusCooking  // cooking
 	_
 	StatusKeepWarm // keep warm
 	StatusShutdown // shutdown
