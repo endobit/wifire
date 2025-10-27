@@ -40,6 +40,7 @@ validate the accuracy of the predictions against the actual completion time.`,
 				if err != nil {
 					return fmt.Errorf("invalid actual time format (use RFC3339): %w", err)
 				}
+
 				actualFinish = &parsed
 			}
 
@@ -53,6 +54,7 @@ validate the accuracy of the predictions against the actual completion time.`,
 				if err := json.Unmarshal(scanner.Bytes(), &status); err != nil {
 					continue // Skip invalid entries
 				}
+
 				if status.Probe > 0 && status.ProbeSet > 0 {
 					entries = append(entries, status)
 				}
@@ -69,9 +71,11 @@ validate the accuracy of the predictions against the actual completion time.`,
 			}
 
 			fmt.Printf("Forecasting ETA predictions from %d entries\n", len(entries))
+
 			if actualFinish != nil {
 				fmt.Printf("Actual finish time: %s\n", actualFinish.Format("15:04:05"))
 			}
+
 			fmt.Println()
 
 			// Initialize exponential predictor
@@ -192,6 +196,7 @@ validate the accuracy of the predictions against the actual completion time.`,
 
 			// Summary
 			fmt.Println()
+
 			if actualFinish != nil {
 				firstEntry := entries[0]
 				lastEntry := entries[len(entries)-1]
@@ -208,6 +213,7 @@ validate the accuracy of the predictions against the actual completion time.`,
 				if ep.IsInitialized() {
 					finalETA := ep.EstimateTimeToTarget(float64(lastEntry.ProbeSet))
 					actualRemaining := actualFinish.Sub(lastEntry.Time)
+
 					if actualRemaining > 0 && finalETA > 0 {
 						errorPercent := (finalETA.Seconds() - actualRemaining.Seconds()) / actualRemaining.Seconds() * 100
 						fmt.Printf("  Final prediction accuracy: %+.1f%% error\n", errorPercent)
