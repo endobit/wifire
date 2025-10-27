@@ -234,7 +234,10 @@ func (c *Client) login() error {
 	var input *cognitoidentityprovider.InitiateAuthInput
 
 	if c.conn.idToken == "" { // basic auth
-		c.logger.Info("logging in with basic auth")
+		c.logger.Info("logging in with basic auth",
+			slog.String("username", c.username),
+		)
+
 		input = &cognitoidentityprovider.InitiateAuthInput{
 			AuthFlow: types.AuthFlowTypeUserPasswordAuth,
 			ClientId: aws.String(c.clientID),
