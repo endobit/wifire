@@ -414,7 +414,6 @@ func newUpdate(data []byte) Status {
 		ProbeAlarmFired: msg.Status.ProbeAlarmFired != 0,
 		ProbeConnected:  msg.Status.ProbeConnected != 0,
 		ProbeSet:        msg.Status.ProbeSet,
-		RealTime:        msg.Status.RealTime,
 		Smoke:           msg.Status.Smoke,
 		Time:            time.Unix(msg.Status.Time, 0),
 		Units:           Units(msg.Status.Units),
