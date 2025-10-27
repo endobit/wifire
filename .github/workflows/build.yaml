@@ -8,6 +8,9 @@ on:
     branches:
       - main
 
+env:
+  GOEXPERIMENT: jsonv2
+
 jobs:
   lint:
     runs-on: ubuntu-latest
