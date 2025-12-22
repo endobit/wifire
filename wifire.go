@@ -186,13 +186,13 @@ func (c *Client) MQTTDisconnect() {
 	c.conn.mqttClient.Disconnect(0)
 }
 
-// MQTTSubscribeStatus subscribes to the prod/thing/update for the grill.
+// MQTTSubscribeUpdate subscribes to the prod/thing/update for the grill.
 // Updates are pushed to the returned channel.
-func (c *Client) MQTTSubscribeStatus(grill string, subscriber chan Status) error {
+func (c *Client) MQTTSubscribeUpdate(grillName string, subscription chan Update) error {
 	c.conn.mutex.RLock()
 	defer c.conn.mutex.RUnlock()
 
-	token := c.conn.mqttClient.Subscribe("prod/thing/update/"+grill, 1, func(_ mqtt.Client, m mqtt.Message) {
+	token := c.conn.mqttClient.Subscribe("prod/thing/update/"+grillName, 1, func(_ mqtt.Client, m mqtt.Message) {
 		var msg map[string]any
 
 		payload := m.Payload()
@@ -211,7 +211,7 @@ func (c *Client) MQTTSubscribeStatus(grill string, subscriber chan Status) error
 			slog.Any("message_id", m.MessageID()),
 			slog.Any("payload", msg))
 
-		subscriber <- newUpdate(payload)
+		subscription <- newUpdate(payload)
 	})
 
 	token.Wait()
@@ -349,6 +349,7 @@ func (c *Client) mqttConnectCallback(_ mqtt.Client) {
 
 func (c *Client) mqttConnectionLostCallback(_ mqtt.Client, _ error) {
 	c.logger.Error("connection lost callback")
+	// c.conn.mqttClient.Disconnect(0)
 	c.isMQTTConnected.Store(false)
 }
 
@@ -400,27 +401,53 @@ func logResponseBody(logger *slog.Logger, name string, resp *http.Response) erro
 	return nil
 }
 
-func newUpdate(data []byte) Status {
-	var msg prodThingUpdate
+var updateID atomic.Int64
+
+func newUpdate(data []byte) Update {
+	var msg update
 
 	if err := json.Unmarshal(data, &msg); err != nil {
-		return Status{Error: err}
+		return Update{Error: err}
 	}
 
-	return Status{
-		Ambient:         msg.Status.Ambient,
-		Connected:       msg.Status.Connected,
-		Grill:           msg.Status.Grill,
-		GrillSet:        msg.Status.Set,
-		KeepWarm:        msg.Status.KeepWarm,
-		PelletLevel:     msg.Status.PelletLevel,
-		Probe:           msg.Status.Probe,
-		ProbeAlarmFired: msg.Status.ProbeAlarmFired != 0,
-		ProbeConnected:  msg.Status.ProbeConnected != 0,
-		ProbeSet:        msg.Status.ProbeSet,
-		Smoke:           msg.Status.Smoke,
-		Time:            time.Unix(msg.Status.Time, 0),
-		Units:           Units(msg.Status.Units),
-		SystemStatus:    SystemStatus(msg.Status.SystemStatus),
+	u := Update{
+		ID: updateID.Add(1),
+		Usage: Usage{
+			Auger:                    msg.Usage.Auger,
+			CookCycles:               msg.Usage.CookCycles,
+			Fan:                      msg.Usage.Fan,
+			GreaseTrapCleanCountdown: msg.Usage.GreaseTrapCleanCountdown,
+			GrillCleanCountdown:      msg.Usage.GrillCleanCountdown,
+			Hotrod:                   msg.Usage.Hotrod,
+			RunTime:                  time.Duration(msg.Usage.RunTime) * time.Second,
+			Time:                     time.Unix(msg.Usage.Time, 0),
+			ErrorStats:               ErrorStats(msg.Usage.ErrorStats),
+		},
+		Status: Status{
+			Ambient:         msg.Status.Ambient,
+			TimerComplete:   msg.Status.CookTimerComplete != 0,
+			Connected:       msg.Status.Connected,
+			Grill:           msg.Status.Grill,
+			GrillSet:        msg.Status.Set,
+			KeepWarm:        msg.Status.KeepWarm != 0,
+			PelletLevel:     msg.Status.PelletLevel,
+			Probe:           msg.Status.Probe,
+			ProbeAlarmFired: msg.Status.ProbeAlarmFired != 0,
+			ProbeConnected:  msg.Status.ProbeConnected != 0,
+			ProbeSet:        msg.Status.ProbeSet,
+			Smoke:           msg.Status.Smoke,
+			Time:            time.Unix(msg.Status.Time, 0),
+			Units:           Units(msg.Status.Units),
+			SystemStatus:    SystemStatus(msg.Status.SystemStatus),
+		},
 	}
+
+	if msg.Status.CookTimerStart != 0 {
+		u.Status.TimerStart = time.Unix(msg.Status.CookTimerStart, 0)
+	}
+	if msg.Status.CookTimerEnd != 0 {
+		u.Status.TimerEnd = time.Unix(msg.Status.CookTimerEnd, 0)
+	}
+
+	return u
 }

@@ -20,18 +20,19 @@ type monitor struct {
 
 type status struct {
 	Ambient         float64             `json:"ambient"`
+	TimerEnd        time.Time           `json:"timer_end,omitzero"`
 	Connected       bool                `json:"connected"`
 	Grill           float64             `json:"grill"`
 	GrillSet        float64             `json:"grill_set"`
-	KeepWarm        int                 `json:"keep_warm,omitempty"`
-	PelletLevel     int                 `json:"pellet_level,omitempty"`
-	Probe           float64             `json:"probe,omitempty"`
-	ProbeAlarmFired bool                `json:"probe_alarm_fired,omitempty"`
-	ProbeConnected  bool                `json:"probe_connected,omitempty"`
-	ProbeETA        time.Duration       `json:"probe_eta,omitempty,format:units"`
-	ProbeSet        float64             `json:"probe_set,omitempty"`
-	RealTime        bool                `json:"real_time,omitempty"`
-	Smoke           int                 `json:"smoke,omitempty"`
+	KeepWarm        bool                `json:"keep_warm,omitzero"`
+	PelletLevel     int                 `json:"pellet_level,omitzero"`
+	Probe           float64             `json:"probe,omitzero"`
+	ProbeAlarmFired bool                `json:"probe_alarm_fired,omitzero"`
+	ProbeConnected  bool                `json:"probe_connected,omitzero"`
+	ProbeETA        time.Duration       `json:"probe_eta,omitzero,format:units"`
+	ProbeSet        float64             `json:"probe_set,omitzero"`
+	RealTime        bool                `json:"real_time,omitzero"`
+	Smoke           int                 `json:"smoke,omitzero"`
 	Time            time.Time           `json:"time"`
 	Units           wifire.Units        `json:"units"`
 	SystemStatus    wifire.SystemStatus `json:"system_status"`
@@ -66,7 +67,7 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 			"uncertainty", uncertainty)
 	}
 
-	subscription := make(chan wifire.Status, 1)
+	subscription := make(chan wifire.Update, 1)
 
 	var ticker *time.Ticker
 
@@ -87,7 +88,7 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 			if err := m.Grill.MQTTConnect(); err != nil {
 				m.Logger.Error("cannot connect to MQTT", "error", err)
 			} else {
-				if err := m.Grill.MQTTSubscribeStatus(grillName, subscription); err != nil {
+				if err := m.Grill.MQTTSubscribeUpdate(grillName, subscription); err != nil {
 					m.Logger.Error("cannot subscribe to status", "error", err)
 					m.Grill.MQTTDisconnect()
 				}
@@ -101,18 +102,22 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 
 			return ctx.Err()
 
-		case msg := <-subscription:
-			if msg.Error != nil {
-				m.Logger.Error("invalid status", "error", msg.Error)
+		case update := <-subscription:
+			if update.Error != nil {
+				m.Logger.Error("invalid update", "error", update.Error)
 			}
 
-			if !msg.Connected {
+			if update.ID == 1 || update.ID%100 == 0 { // periodic log of grill metadata
+				logMetadata(m.Logger, &update.Usage)
+			}
+
+			if !update.Status.Connected {
 				m.Logger.Warn("grill disconnected")
 
 				continue
 			}
 
-			status := newStatus(&msg)
+			status := newStatus(&update.Status)
 
 			// Update predictor with new probe measurement
 			if status.Probe > 0 && status.ProbeSet > 0 {
@@ -133,6 +138,10 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 				slog.Float64("ambient", status.Ambient),
 				slog.Float64("grill", status.Grill),
 				slog.Float64("grill_set", status.GrillSet),
+			}
+
+			if !status.TimerEnd.IsZero() {
+				attrs = append(attrs, slog.Duration("timer_end", status.TimerEnd.Sub(time.Now())))
 			}
 
 			if status.ProbeConnected {
@@ -169,7 +178,8 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 				}
 
 				if bestETA > 0 {
-					msg.ProbeETA, status.ProbeETA = bestETA, bestETA // set ETA in both original and our internal status
+					// set ETA in both original and our internal status
+					update.Status.ProbeETA, status.ProbeETA = bestETA, bestETA
 
 					attrs = append(attrs,
 						slog.Duration("probe_eta", bestETA.Round(time.Minute)),
@@ -195,7 +205,7 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 			m.Logger.LogAttrs(context.TODO(), slog.LevelInfo, logMsg, attrs...)
 
 			if m.Output != nil { // the original message plus calculated ETA gets logged to a file
-				b, err := json.Marshal(msg)
+				b, err := json.Marshal(update)
 				if err != nil {
 					m.Logger.Error("cannot marshal", "error", err)
 				}
@@ -380,10 +390,51 @@ func (m *monitor) calculateProbeETA(current *status) time.Duration {
 	return time.Duration(etaSeconds) * time.Second
 }
 
+func logMetadata(logger *slog.Logger, usage *wifire.Usage) {
+	logger.Info("metadata",
+		"cook_cycles", usage.CookCycles,
+		"runtime", usage.RunTime,
+		"time", usage.Time,
+	)
+
+	errs := usage.ErrorStats
+	attrs := make([]slog.Attr, 0)
+
+	if errs.AugerDisconnect > 0 {
+		attrs = append(attrs, slog.Int("auger_disconnect", errs.AugerDisconnect))
+	}
+	if errs.AugerOverCurrent > 0 {
+		attrs = append(attrs, slog.Int("auger_over_current", errs.AugerOverCurrent))
+	}
+	if errs.BadThermocouple > 0 {
+		attrs = append(attrs, slog.Int("bad_thermocouple", errs.BadThermocouple))
+	}
+	if errs.FanDisconnect > 0 {
+		attrs = append(attrs, slog.Int("fan_disconnect", errs.FanDisconnect))
+	}
+	if errs.IgniterDisconnect > 0 {
+		attrs = append(attrs, slog.Int("igniter_disconnect", errs.IgniterDisconnect))
+	}
+	if errs.IgniteFail > 0 {
+		attrs = append(attrs, slog.Int("ignite_fail", errs.IgniteFail))
+	}
+	if errs.LowTemperature > 0 {
+		attrs = append(attrs, slog.Int("low_temperature", errs.LowTemperature))
+	}
+	if errs.OverHeat > 0 {
+		attrs = append(attrs, slog.Int("over_heat", errs.OverHeat))
+	}
+
+	if len(attrs) > 0 {
+		logger.LogAttrs(context.TODO(), slog.LevelInfo, "errors", attrs...)
+	}
+}
+
 func newStatus(s *wifire.Status) *status {
 	// All temperatures converted to float64 for use with the prediction model
 	return &status{
 		Ambient:         float64(s.Ambient),
+		TimerEnd:        s.TimerEnd,
 		Connected:       s.Connected,
 		Grill:           float64(s.Grill),
 		GrillSet:        float64(s.GrillSet),

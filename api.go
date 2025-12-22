@@ -37,14 +37,14 @@ type SystemStatus int
 const (
 	_ SystemStatus = iota
 	_
-	StatusSleeping // sleeping
-	StatusReady    // ready
-	StatusIgniting // igniting
-	StatusHeating  // heating
-	StatusCooking  // cooking
-	_
-	StatusKeepWarm // keep warm
-	StatusShutdown // shutdown
+	StatusSleeping      // sleeping
+	StatusReady         // ready
+	StatusIgniting      // igniting
+	StatusHeating       // heating
+	StatusCooking       // cooking
+	StatusCustomCooking // custom cooking
+	StatusKeepWarm      // keep warm
+	StatusShutdown      // shutdown
 
 	StatusOffline SystemStatus = 99 // offline
 )
@@ -128,48 +128,96 @@ type getMQTTResponse struct {
 	SignedURL         string `json:"signedUrl"`
 }
 
+type Update struct {
+	ID     int64
+	Error  error `json:"error,omitzero"`
+	Usage  Usage
+	Status Status
+}
+
+type Usage struct {
+	Auger                    int           `json:"auger"`
+	CookCycles               int           `json:"cook_cycles"`
+	ErrorStats               ErrorStats    `json:"error_stats"`
+	Fan                      int           `json:"fan"`
+	GreaseTrapCleanCountdown int           `json:"grease_trap_clean_countdown"`
+	GrillCleanCountdown      int           `json:"grill_clean_countdown"`
+	Hotrod                   int           `json:"hotrod"`
+	RunTime                  time.Duration `json:"runtime"`
+	Time                     time.Time     `json:"time"`
+}
+
+type ErrorStats errorStats
+
 // Status is the real-time grill status. It is a cleaned up version of the
 // status returned from the MQTT subscription. If there was an error receiving
 // the message the Error field is set.
 //
 // The ProbeETA field is calculated separately and is included here for logging.
 type Status struct {
-	Error           error         `json:"error,omitempty"`
 	Ambient         int           `json:"ambient"`
+	TimerComplete   bool          `json:"timer_complete"`
+	TimerEnd        time.Time     `json:"timer_end"`
+	TimerStart      time.Time     `json:"timer_start"`
 	Connected       bool          `json:"connected"`
 	Grill           int           `json:"grill"`
 	GrillSet        int           `json:"grill_set"`
-	KeepWarm        int           `json:"keep_warm,omitempty"` // TODO: next smoke use keep warm to see if this is a bool
-	PelletLevel     int           `json:"pellet_level,omitempty"`
-	Probe           int           `json:"probe,omitempty"`
-	ProbeAlarmFired bool          `json:"probe_alarm_fired,omitempty"`
-	ProbeConnected  bool          `json:"probe_connected,omitempty"`
-	ProbeSet        int           `json:"probe_set,omitempty"`
-	Smoke           int           `json:"smoke,omitempty"`
+	KeepWarm        bool          `json:"keep_warm,omitzero"`
+	PelletLevel     int           `json:"pellet_level,omitzero"`
+	Probe           int           `json:"probe,omitzero"`
+	ProbeAlarmFired bool          `json:"probe_alarm_fired,omitzero"`
+	ProbeConnected  bool          `json:"probe_connected,omitzero"`
+	ProbeSet        int           `json:"probe_set,omitzero"`
+	Smoke           int           `json:"smoke,omitzero"`
 	Time            time.Time     `json:"time"`
 	Units           Units         `json:"units"`
 	SystemStatus    SystemStatus  `json:"system_status"`
-	ProbeETA        time.Duration `json:"probe_eta,omitempty,format:units"`
+	ProbeETA        time.Duration `json:"probe_eta,omitzero,format:units"`
 }
 
-type prodThingUpdate struct {
+// update is returned from the prod/thing/update subscription.
+type update struct {
 	Status status `json:"status"`
+	Usage  usage  `json:"usage"`
 }
 
-// status is the raw message returned from the MQTT subscription.
+type usage struct {
+	Auger                    int        `json:"auger"`
+	CookCycles               int        `json:"cook_cycles"`
+	ErrorStats               errorStats `json:"error_stats"`
+	Fan                      int        `json:"fan"`
+	GreaseTrapCleanCountdown int        `json:"grease_trap_clean_countdown"`
+	GrillCleanCountdown      int        `json:"grill_clean_countdown"`
+	Hotrod                   int        `json:"hotrod"`
+	RunTime                  int64      `json:"runtime"`
+	Time                     int64      `json:"time"`
+}
+
+type errorStats struct {
+	AugerDisconnect   int `json:"auger_disco,omitzero"`
+	AugerOverCurrent  int `json:"auger_ovrcur,omitzero"`
+	BadThermocouple   int `json:"bad_thermocouple,omitzero"`
+	FanDisconnect     int `json:"fan_disco,omitzero"`
+	IgniterDisconnect int `json:"ign_disco,omitzero"`
+	IgniteFail        int `json:"ignite_fail,omitzero"`
+	LowTemperature    int `json:"lowtemp,omitzero"`
+	OverHeat          int `json:"overheat,omitzero"`
+}
+
+// status is the raw status returned from the MQTT subscription.
 type status struct {
 	Ambient           int    `json:"ambient"` // temperature
 	Connected         bool   `json:"connected"`
 	CookID            string `json:"cook_id"`
-	CooKTimerComplete int    `json:"cook_timer_complete"` // bool?
-	CookTimerEnd      int    `json:"cook_timer_end"`      // unix timestamp?
-	CookTimerStrart   int    `json:"cook_timer_start"`    // unix timestamp?
+	CookTimerComplete int    `json:"cook_timer_complete"` // bool
+	CookTimerEnd      int64  `json:"cook_timer_end"`      // unix timestamp
+	CookTimerStart    int64  `json:"cook_timer_start"`    // unix timestamp
 	CurrentCycle      int    `json:"current_cycle"`
 	CurrentStep       int    `json:"current_step"`
 	Errors            int    `json:"errors"`            // bool?
 	Grill             int    `json:"grill"`             // temperature
 	InCustom          int    `json:"in_custom"`         // bool?
-	KeepWarm          int    `json:"keepwarm"`          // bool?
+	KeepWarm          int    `json:"keepwarm"`          // 1 for transitioning to "keep warm" mode, but still "cooking"
 	PelletLevel       int    `json:"pellet_level"`      // unknown - my grill doesn't have pellet monitor
 	Probe             int    `json:"probe"`             // temperature
 	ProbeAlarmFired   int    `json:"probe_alarm_fired"` // bool
