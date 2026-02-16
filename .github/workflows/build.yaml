@@ -13,6 +13,7 @@ jobs:
     uses: endobit/ci/.github/workflows/go-build.yaml@main
     with:
       go-experiment: jsonv2
+      path: ./...
   lint:
     uses: endobit/ci/.github/workflows/go-lint.yaml@main
     with:
