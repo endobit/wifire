@@ -141,7 +141,7 @@ func (m *monitor) Run(ctx context.Context, grillName string) error { //nolint:go
 			}
 
 			if !status.TimerEnd.IsZero() {
-				attrs = append(attrs, slog.Duration("timer_end", status.TimerEnd.Sub(time.Now())))
+				attrs = append(attrs, slog.Duration("timer_end", time.Until(status.TimerEnd)))
 			}
 
 			if status.ProbeConnected {
@@ -403,24 +403,31 @@ func logMetadata(logger *slog.Logger, usage *wifire.Usage) {
 	if errs.AugerDisconnect > 0 {
 		attrs = append(attrs, slog.Int("auger_disconnect", errs.AugerDisconnect))
 	}
+
 	if errs.AugerOverCurrent > 0 {
 		attrs = append(attrs, slog.Int("auger_over_current", errs.AugerOverCurrent))
 	}
+
 	if errs.BadThermocouple > 0 {
 		attrs = append(attrs, slog.Int("bad_thermocouple", errs.BadThermocouple))
 	}
+
 	if errs.FanDisconnect > 0 {
 		attrs = append(attrs, slog.Int("fan_disconnect", errs.FanDisconnect))
 	}
+
 	if errs.IgniterDisconnect > 0 {
 		attrs = append(attrs, slog.Int("igniter_disconnect", errs.IgniterDisconnect))
 	}
+
 	if errs.IgniteFail > 0 {
 		attrs = append(attrs, slog.Int("ignite_fail", errs.IgniteFail))
 	}
+
 	if errs.LowTemperature > 0 {
 		attrs = append(attrs, slog.Int("low_temperature", errs.LowTemperature))
 	}
+
 	if errs.OverHeat > 0 {
 		attrs = append(attrs, slog.Int("over_heat", errs.OverHeat))
 	}

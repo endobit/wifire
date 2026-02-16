@@ -50,8 +50,9 @@ type connection struct {
 }
 
 var (
-	defaultBaseURL  = "https://1ywgyc65d1.execute-api.us-west-2.amazonaws.com"
-	defaultClientID = "2fuohjtqv1e63dckp5v84rau0j" // Traeger App ID
+	defaultBaseURL = "https://1ywgyc65d1.execute-api.us-west-2.amazonaws.com"
+	//	defaultClientID = "2fuohjtqv1e63dckp5v84rau0j" // Traeger App ID
+	defaultClientID = "4id473dsrcq4kevlgrikukqn2a"
 	defaultRegion   = "us-west-2"
 )
 
@@ -410,7 +411,7 @@ func newUpdate(data []byte) Update {
 		return Update{Error: err}
 	}
 
-	u := Update{
+	update := Update{
 		ID: updateID.Add(1),
 		Usage: Usage{
 			Auger:                    msg.Usage.Auger,
@@ -443,11 +444,12 @@ func newUpdate(data []byte) Update {
 	}
 
 	if msg.Status.CookTimerStart != 0 {
-		u.Status.TimerStart = time.Unix(msg.Status.CookTimerStart, 0)
-	}
-	if msg.Status.CookTimerEnd != 0 {
-		u.Status.TimerEnd = time.Unix(msg.Status.CookTimerEnd, 0)
+		update.Status.TimerStart = time.Unix(msg.Status.CookTimerStart, 0)
 	}
 
-	return u
+	if msg.Status.CookTimerEnd != 0 {
+		update.Status.TimerEnd = time.Unix(msg.Status.CookTimerEnd, 0)
+	}
+
+	return update
 }

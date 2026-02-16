@@ -168,7 +168,7 @@ func (p *Plotter) Plot() (*plot.Plot, error) {
 		}
 	}
 
-	var ( //nolint:prealloc
+	var (
 		markerXYs    plotter.XYs
 		markerLabels []string
 	)
