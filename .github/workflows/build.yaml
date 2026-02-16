@@ -1,5 +1,8 @@
 name: build
 
+env:
+  GOEXPERIMENT: jsonv2
+
 on:
   push:
     branches:
@@ -8,27 +11,8 @@ on:
     branches:
       - main
 
-env:
-  GOEXPERIMENT: jsonv2
-
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
-        with:
-          go-version: 1.25
-      - name: Lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: latest
   build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
-        with:
-          go-version: 1.25
-      - name: Build
-        run: go build -o wifire ./cmd
+    uses: endobit/ci/.github/workflows/go-build.yaml@main
+  lint:
+    uses: endobit/ci/.github/workflows/go-lint.yaml@main
