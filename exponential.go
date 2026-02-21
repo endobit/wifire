@@ -391,10 +391,7 @@ func (ep *ExponentialPredictor) linearTimeToTarget(targetTemp float64) time.Dura
 	}
 
 	// Calculate rate from last few points
-	recentPoints := 5
-	if len(ep.temperatures) < recentPoints {
-		recentPoints = len(ep.temperatures)
-	}
+	recentPoints := min(len(ep.temperatures), 5)
 
 	startIdx := len(ep.temperatures) - recentPoints
 	timeDiff := ep.timestamps[len(ep.timestamps)-1].Sub(ep.timestamps[startIdx]).Seconds()
