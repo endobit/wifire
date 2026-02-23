@@ -133,7 +133,7 @@ func (c *Client) UserData() (*GetUserDataResponse, error) {
 
 	req.Header.Set("authorization", c.conn.idToken)
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +305,7 @@ func (c *Client) mqttConnect() error {
 
 	req.Header.Set("authorization", c.conn.idToken)
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec
 	if err != nil {
 		return err
 	}

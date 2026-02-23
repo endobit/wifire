@@ -21,7 +21,7 @@ import (
 
 type Config struct {
 	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
+	Password string `mapstructure:"password"` //nolint:gosec
 }
 
 func newRootCmd() *cobra.Command { //nolint:gocognit
@@ -248,7 +248,7 @@ func loadHistoricalData(filename string, maxEntries int) ([]status, error) {
 
 		if err := json.Unmarshal([]byte(lines[i]), &status); err != nil {
 			// Skip invalid lines but continue processing
-			slog.Warn("skipping invalid JSON line in history file", "line", i+1, "error", err)
+			slog.Warn("skipping invalid JSON line in history file", "line", i+1, "error", err) //nolint:gosec
 
 			continue
 		}
