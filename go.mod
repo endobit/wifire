@@ -5,7 +5,7 @@ go 1.26
 require (
 	endobit.io/app v0.1.0
 	endobit.io/table v0.6.0
-	github.com/aws/aws-sdk-go-v2 v1.41.1
+	github.com/aws/aws-sdk-go-v2 v1.41.2
 	github.com/aws/aws-sdk-go-v2/config v1.32.9
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.58.0
 	github.com/eclipse/paho.mqtt.golang v1.5.1
