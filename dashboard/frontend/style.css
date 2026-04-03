@@ -1,0 +1,109 @@
+:root {
+  font-family: system-ui, sans-serif;
+  background: #0f1419;
+  color: #e6edf3;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.page-header {
+  padding: 1rem 1rem 0.75rem;
+}
+
+h1 {
+  font-weight: 600;
+  font-size: 1.25rem;
+  margin: 0 0 0.75rem;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+
+.status {
+  font-size: 0.875rem;
+  color: #8b949e;
+  margin: 0;
+}
+
+.interval-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.interval-label {
+  font-size: 0.8125rem;
+  color: #8b949e;
+  white-space: nowrap;
+}
+
+.interval-input {
+  width: 5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.875rem;
+  color: #e6edf3;
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+}
+
+.interval-input:focus {
+  outline: 1px solid #58a6ff;
+  border-color: #58a6ff;
+}
+
+.chart-wrap {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  background: #161b22;
+  border: none;
+  border-top: 1px solid #30363d;
+  border-bottom: 1px solid #30363d;
+  border-radius: 0;
+  padding: 0.5rem 0 0;
+}
+
+.chart-svg-inner {
+  width: 100%;
+  display: block;
+}
+
+.chart-wrap svg,
+.temp-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 280px;
+  max-height: min(70vh, 520px);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.8rem;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 1rem 0;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.swatch {
+  width: 12px;
+  height: 3px;
+  border-radius: 1px;
+}

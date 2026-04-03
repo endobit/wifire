@@ -10,3 +10,14 @@ services:
       WIFIRE_PASSWORD: ${WIFIRE_PASSWORD}
     volumes:
       - ./data:/data
+
+  dashboard:
+    build: ./dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data:ro
+    environment:
+      GRILL_JSONL: /data/grill.jsonl
+      STATIC_DIR: /app/static

@@ -44,6 +44,10 @@ log to `/data/grill.jsonl` in the container):
 docker compose up --build
 ```
 
+The same Compose file also builds a **live dashboard** on port **8080** (Rust +
+Leptos) that reads `./data/grill.jsonl` read-only. See
+[`./dashboard/README.md`](./dashboard/README.md).
+
 Copy `.env.example` to `.env` in the project directory and set
 `WIFIRE_USERNAME` and `WIFIRE_PASSWORD`. Compose passes them in via `env_file`
 and the `environment` section.

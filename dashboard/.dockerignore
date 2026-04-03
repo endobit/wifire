@@ -1,0 +1,4 @@
+target
+frontend/dist
+.git
+*.md
