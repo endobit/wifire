@@ -2,3 +2,5 @@
 /coverage.out
 /*.log
 /wifire
+.env
+/data/

@@ -1,0 +1,12 @@
+services:
+  wifire:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    # Same variables; Compose also interpolates ${...} from the project .env file.
+    environment:
+      WIFIRE_USERNAME: ${WIFIRE_USERNAME}
+      WIFIRE_PASSWORD: ${WIFIRE_PASSWORD}
+    volumes:
+      - ./data:/data

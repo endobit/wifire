@@ -143,7 +143,7 @@ type Usage struct {
 	GreaseTrapCleanCountdown int           `json:"grease_trap_clean_countdown"`
 	GrillCleanCountdown      int           `json:"grill_clean_countdown"`
 	Hotrod                   int           `json:"hotrod"`
-	RunTime                  time.Duration `json:"runtime"`
+	RunTime                  time.Duration `json:"runtime,format:units"`
 	Time                     time.Time     `json:"time"`
 }
 

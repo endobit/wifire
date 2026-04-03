@@ -13,6 +13,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/subosito/gotenv"
 
 	"endobit.io/app"
 	"endobit.io/app/log"
@@ -37,6 +38,10 @@ func newRootCmd() *cobra.Command { //nolint:gocognit
 		Short:   "Traeger WiFire Grill Util",
 		Version: version,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if err := loadDotEnv(); err != nil {
+				return err
+			}
+
 			var err error
 
 			if logOpts.Filename != "" {
@@ -70,15 +75,33 @@ func newRootCmd() *cobra.Command { //nolint:gocognit
 			logger := log.FromContext(cmd.Context())
 
 			if err := v.ReadInConfig(); err != nil {
-				slog.Warn("failed to read config file", "error", err)
+				var notFound viper.ConfigFileNotFoundError
+				if !errors.As(err, &notFound) {
+					slog.Warn("failed to read config file", "error", err)
+				}
 			}
 
 			if err := v.Unmarshal(&cfg); err != nil {
 				return err
 			}
 
+			// Unmarshal uses AllSettings(), which omits keys that exist only in the
+			// environment (e.g. WIFIRE_* from Docker env_file). Merge via Get.
+			cfg.Username = v.GetString("username")
+			cfg.Password = v.GetString("password")
+
+			// Flags override config file and environment when set (empty flags must not
+			// wipe WIFIRE_* from the environment or .env).
+			if u, err := cmd.Flags().GetString("username"); err == nil && u != "" {
+				cfg.Username = u
+			}
+
+			if p, err := cmd.Flags().GetString("password"); err == nil && p != "" {
+				cfg.Password = p
+			}
+
 			if cfg.Username == "" || cfg.Password == "" {
-				return errors.New("username and password must be set, either via flags or config file")
+				return errors.New("username and password must be set via flags, config file, .env, or environment (WIFIRE_USERNAME, WIFIRE_PASSWORD)")
 			}
 
 			grill, err := connectToGrill(cfg.Username, cfg.Password, logger)
@@ -89,6 +112,10 @@ func newRootCmd() *cobra.Command { //nolint:gocognit
 			userData, err := grill.UserData()
 			if err != nil {
 				return err
+			}
+
+			if len(userData.Things) == 0 {
+				return errors.New("no grills found for this account")
 			}
 
 			if len(userData.Things) > 1 { // TODO: what to decide which grill to use?
@@ -147,28 +174,47 @@ func newRootCmd() *cobra.Command { //nolint:gocognit
 	}
 
 	v = viper.New()
+	v.SetEnvPrefix("WIFIRE")
+	v.AutomaticEnv()
 	v.AddConfigPath(path)
 	v.SetConfigName("config")
 
 	logOpts = log.NewOptions(cmd.PersistentFlags())
 
 	cmd.Flags().StringVarP(&output, "output", "o", "", "log grill data to file")
-	cmd.Flags().String("username", "", "account username")
-	cmd.Flags().String("password", "", "account password")
-
-	if err := v.BindPFlag("username", cmd.Flags().Lookup("username")); err != nil {
-		panic(err)
-	}
-
-	if err := v.BindPFlag("password", cmd.Flags().Lookup("password")); err != nil {
-		panic(err)
-	}
+	cmd.Flags().String("username", "", "account username (overrides WIFIRE_USERNAME / config)")
+	cmd.Flags().String("password", "", "account password (overrides WIFIRE_PASSWORD / config)")
 
 	cmd.AddCommand(newVersionCmd())
 	cmd.AddCommand(newPlotCmd())
 	cmd.AddCommand(newForecastCmd())
 
 	return &cmd
+}
+
+// loadDotEnv loads a .env file into the process environment so viper picks up
+// WIFIRE_USERNAME and WIFIRE_PASSWORD. If WIFIRE_DOTENV is set, that path is
+// loaded (must exist). Otherwise ".env" in the current directory is loaded when
+// present.
+func loadDotEnv() error {
+	path := os.Getenv("WIFIRE_DOTENV")
+	if path == "" {
+		if _, err := os.Stat(".env"); err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+
+			return fmt.Errorf(".env: %w", err)
+		}
+
+		path = ".env"
+	}
+
+	if err := gotenv.Load(path); err != nil {
+		return fmt.Errorf("load %s: %w", path, err)
+	}
+
+	return nil
 }
 
 var grillRegexp = regexp.MustCompile(`^\[([^\]]+)\]\s+(.+)$`)

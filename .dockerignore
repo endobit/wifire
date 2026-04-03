@@ -1,0 +1,8 @@
+.builder
+.git
+.github
+wifire
+*.log
+coverage.out
+data
+.env

@@ -16,10 +16,14 @@ again for help. Use the `build` target to build the `wifire` cli.
 
 ## cli
 
-The `wifire` command requires both `--username` and `--password` flags, use the
-same credentials used for the Traeger mobile app. With no other options the
-command will start logging to the terminal received temperature updates from
-your grill. For example:
+The `wifire` command needs your Traeger account credentials (same as the mobile
+app). Provide them with `--username` and `--password`, in the YAML/TOML config
+file under `username` / `password`, via environment variables `WIFIRE_USERNAME`
+and `WIFIRE_PASSWORD`, or in a `.env` file in the working directory (see
+`.env.example`). Flags override config and environment when set.
+
+With no other options the command will start logging to the terminal received
+temperature updates from your grill. For example:
 
 ```
 2:21PM INF ambient=28 grill=80 grill_set=80 probe=15 probe_alarm=false probe_set=70
@@ -30,6 +34,28 @@ your grill. For example:
 Use the `--output` flag to also log JSON to a file.
 
 Run `wifire` with no arguments to see the help and usage.
+
+## docker
+
+Build and run with Compose (creates `./data` on the host and writes the JSON
+log to `/data/grill.jsonl` in the container):
+
+```
+docker compose up --build
+```
+
+Copy `.env.example` to `.env` in the project directory and set
+`WIFIRE_USERNAME` and `WIFIRE_PASSWORD`. Compose passes them in via `env_file`
+and the `environment` section.
+
+For a plain `docker run`, use `-e WIFIRE_USERNAME=... -e WIFIRE_PASSWORD=...`.
+
+The image sets `ENTRYPOINT` to the `wifire` binary, so `docker compose run wifire
+sh` is interpreted as `wifire sh` (invalid). To open a shell in the same image:
+
+```
+docker compose run --rm --entrypoint /bin/sh wifire
+```
 
 ### plot
 
