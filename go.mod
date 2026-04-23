@@ -12,7 +12,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
-	gonum.org/v1/plot v0.16.0
+	gonum.org/v1/plot v0.17.0
 )
 
 require (
